@@ -35,7 +35,7 @@ local MODULE_NAME = "improved-siegeengines"
 
 local DEFAULTS = {
   catapults = { enabled = true },
-  tents = { free = true, range = true, variation = 10 },
+  tents = { free = true, range = true, variation = 10, engineers = true },
   towers = { dock = true, orders = true },
   shields = { enabled = true },
   diagnostics = { log = false },
@@ -123,6 +123,17 @@ local FREE_TILE_SIZE = 9
 local FREE_TILE_PF = { 0x5A, { 0xB9 } }
 local FREE_TILE_NAVIGATE = { 0x67, { 0xE8 } }
 
+-- giveTribeAnInstruction, sending engineers into a siege building: its entrance test (which moves
+-- a blocked entrance), and the two calls that take the engineer out of the selection.
+local AOB_INSTRUCTION = "83 EC 1C 8B 44 24 20 69 C0 ? ? 00 00 53 8B 5C 24 30 55 8D 2C 08 33 D2 56 0F BF 75 5C"
+local INSTRUCTION_ENTRANCE = 0x1D1F        -- call resolveBuildingEntryAccessibility
+local INSTRUCTION_DESELECT = 0x1DC5        -- call deselectUnit
+local INSTRUCTION_UNSELECT = 0x1DDA        -- call clearOrDeselectUnitFromSelection
+
+-- UpdateEngineer: how many engineers a siege building needs.
+local AOB_UPDATE_ENGINEER = "51 8B 0D ? ? ? ? 8B C1 69 C0 90 04 00 00 83 3D ? ? ? ? 00"
+local ENGINEER_REQUIRED = 0x10FD           -- call getRequiredEngineerCountForSiegeBuilding
+
 -- UpdateCatapult: its call of setDestinationForUnit. Several modules hook that function's own
 -- first bytes, so it is found through a call (and called through their hooks).
 local AOB_UPDATE_CATAPULT = "83 EC 74 53 8B 1D ? ? ? ? 55 56"
@@ -138,7 +149,8 @@ local TILE_FLAGS_OPERAND = 0x03
 -- Layouts (the same in both executables unless read from code above)
 ---------------------------------------------------------------------------------------
 
-local U = { STRIDE = 0x490, STATE = 0x8C, TYPE = 0x8E, OWNER = 0x96, UID = 0x98, X = 0xC4, Y = 0xC6,
+local U = { STRIDE = 0x490, STATE = 0x8C, TYPE = 0x8E, OWNER = 0x96, UID = 0x98, TARGET_UID = 0xA0,
+  X = 0xC4, Y = 0xC6, DEPOSIT = 0x388,
   TILE = 0xD4, DYING = 0x2A0, ORDER_STATE = 0x2C0, TRIBE = 0x2D8, TARGET = 0x336,
   TARGETING = 0x39C, WALL_TILE = 0x3A8, DOCK_TILE = 0x3B8, SIEGE_BYTE = 0x3FE, WALL_X = 0x3E8,
   WALL_Y = 0x3EA, BEHAVIOUR = 0x42A, STATE_OFFSET = 0x614 }
@@ -146,7 +158,8 @@ local P = { STRIDE = 0x39F4, ATTACKED = 0x2BD8, TRIBE_IDS = 0x310C, TRIBE_UIDS =
 local T = { OWNER = 0x2C, UID = 0x34, STATE = 0x40, LEADER = 0x5A }
 local MAP = { FLAGS = 0x165160, WALL_OWNER = 0x2C6E50, AREA = 0x363ED0, Y_OF_TILE = 0x742B90,
   ROWS = 0x8A40F8, VALID = 0x71BA90, BUILDINGS = 0x2029B0, UNITS = 0x23D7E0 }
-local B = { STRIDE = 0x32C, TYPE = 0xD2, OWNER = 0xD6 }
+local B = { STRIDE = 0x32C, STATE = 0xD0, TYPE = 0xD2, OWNER = 0xD6, UID = 0xD8, X = 0xEE, Y = 0xF0,
+  ENTRY_X = 0xFE, ENTRY_Y = 0x100, WORKERS = 0x19A, STATE_OFFSET = 0x14 }
 
 local TILES = 0x13A10
 local MAX_TRIBES = 1251          -- 1250 troops, in both executables
@@ -156,7 +169,7 @@ local TOWER_RADIUS = 50
 local TOWER_TESTS = 24
 local WIDE_STRIDE = 0x177BC
 
-local UT = { SHIELD = 60, TOWER = 58, CATAPULT = 39, TREBUCHET = 40, MANGONEL = 41, FIRE_BALLISTA = 77 }
+local UT = { ENGINEER = 30, SHIELD = 60, TOWER = 58, CATAPULT = 39, TREBUCHET = 40, MANGONEL = 41, FIRE_BALLISTA = 77 }
 local RANGED_ENGINES = { [39] = true, [40] = true, [41] = true, [77] = true }
 
 -- Troop slots in the AI's attack troop list (aiTribeIDs).
@@ -179,6 +192,9 @@ local THREAT_KIND = {
 local FORTIFICATIONS = { 45, 46, 47, 48, 49, 60, 61, 71, 72, 73, 74, 75, 76, 77, 78 }
 
 local ORDER_WALL, STATE_TO_WALL, STATE_DOCKING = 0x17, 0x65, 8
+local STATE_IDLE, STATE_TO_TENT = 0, 8
+local ENGINEER_RADIUS = 60       -- idle engineers this close to a tent may be sent into it
+local STUCK_ROUNDS = 3           -- AI rounds an engineer may stand still on its way to a tent
 local KIND_TOWER_WALLS = 0x414
 
 ---------------------------------------------------------------------------------------
@@ -382,12 +398,14 @@ end
 -- picks shields and towers: from a siege tent (byte 3), not the siege camp's own (behaviour
 -- 0x15) and in a troop.
 local function siegeUnits()
-  local found = { shields = {}, towers = {}, engines = {} }
-  for i = 1, math.min(rd32(G.list), 255) do
+  local found = { shields = {}, towers = {}, engines = {}, engineers = {} }
+  for i = 1, math.min(rd32(G.list), 1023) do
     local index = rd32(G.list + 4 * i)
     local a = unitAt(index)
     local kind = u16(a + U.TYPE)
-    if RANGED_ENGINES[kind] then
+    if kind == UT.ENGINEER then
+      if unitAlive(index) then found.engineers[#found.engineers + 1] = index end
+    elseif RANGED_ENGINES[kind] then
       if unitAlive(index) then found.engines[#found.engines + 1] = index end
     elseif byte(a + U.SIEGE_BYTE) == 3 and u16(a + U.BEHAVIOUR) ~= 0x15 and s16(a + U.TRIBE) > 0 then
       local list = kind == UT.SHIELD and found.shields or found.towers
@@ -558,10 +576,97 @@ local function commandTowers(player, units)
   end
 end
 
+---------------------------------------------------------------------------------------
+-- 2b. Engineers into their siege tents
+---------------------------------------------------------------------------------------
+
+local function buildingAt(index) return G.buildings + index * B.STRIDE end
+
+-- Send an engineer into a siege building the way the game's own order does: the entrance test
+-- first (it moves a blocked entrance to a free side), then the way there, then the walk.
+local function sendEngineer(unit, building, player)
+  local a, ba = unitAt(unit), buildingAt(building)
+  if F.entrance(G.buildingsState, building, 1, s16(a + U.X), s16(a + U.Y)) == 0 then return false end
+  local ex, ey = s16(ba + B.ENTRY_X), s16(ba + B.ENTRY_Y)
+  if ex < 0 or ey < 0 or ex >= 400 or ey >= 400 or byte(G.valid + ey * 400 + ex) == 0 then
+    return false
+  end
+  local entry = rd32(G.rows + 12 * ey) + ex
+  local to, from = s16(G.area + 2 * entry), s16(G.area + 2 * rd32(a + U.TILE))
+  if F.navigate(G.pathFinder, player, to, from, 0) == 0 then return false end
+  wr16(a + U.TARGET, building)
+  wr32(a + U.TARGET_UID, rd32(ba + B.UID))
+  F.setDestination(G.unitsState, unit, ex, ey, 0)
+  wr16(a + U.ORDER_STATE, STATE_TO_TENT)
+  wr16(a + U.DEPOSIT, 0)
+  F.deselect(G.unitsState, unit)
+  F.unselect(G.unitsState, player, unit, 0)
+  return true
+end
+
+local onTheWay = {}      -- engineer -> { x, y, rounds } while it walks to a tent
+
+local function commandEngineers(player, units)
+  local count = math.min(rd32(G.tlist), 255)
+  if count == 0 or #units.engineers == 0 then return end
+  local taken = {}
+  for i = 1, count do
+    local building = rd32(G.tlist + 4 * i)
+    local ba = buildingAt(building)
+    local need = 0
+    if u16(ba + B.STATE) == 2 then
+      need = F.required(G.buildingsState, building) - s16(ba + B.WORKERS)
+    end
+    if need > 0 then
+      local uid = rd32(ba + B.UID)
+      local bx, by = s16(ba + B.X), s16(ba + B.Y)
+      local mine, idle = {}, {}
+      for _, engineer in ipairs(units.engineers) do
+        if not taken[engineer] then
+          local a = unitAt(engineer)
+          local state = u16(a + U.ORDER_STATE)
+          local ours = s16(a + U.TARGET) == building and rd32(a + U.TARGET_UID) == uid
+          local x, y = s16(a + U.X), s16(a + U.Y)
+          if state == STATE_TO_TENT and ours then
+            -- on its way: it counts, unless it has stood still for a while (a way that closed)
+            local seen = onTheWay[engineer]
+            if seen and seen.x == x and seen.y == y then
+              seen.rounds = seen.rounds + 1
+            else
+              seen = { x = x, y = y, rounds = 0 }
+              onTheWay[engineer] = seen
+            end
+            if seen.rounds >= STUCK_ROUNDS then mine[#mine + 1] = engineer else need = need - 1 end
+          elseif state == STATE_IDLE then
+            if ours then
+              mine[#mine + 1] = engineer
+            else
+              local d = (x - bx) * (x - bx) + (y - by) * (y - by)
+              if d <= ENGINEER_RADIUS * ENGINEER_RADIUS then idle[#idle + 1] = { engineer, d } end
+            end
+          end
+        end
+      end
+      table.sort(idle, function(p, q) return p[2] < q[2] end)
+      for _, entry in ipairs(idle) do mine[#mine + 1] = entry[1] end
+      for _, engineer in ipairs(mine) do
+        if need <= 0 then break end
+        if sendEngineer(engineer, building, player) then
+          taken[engineer] = true
+          onTheWay[engineer] = nil
+          need = need - 1
+          diag("player %d: engineer %d sent into siege tent %d", player, engineer, building)
+        end
+      end
+    end
+  end
+end
+
 local function onSiegeCommand()
   local player = rd32(G.data + 0x130)
   if player < 1 or player > 8 then return end
   local units = siegeUnits()
+  if O.engineers then commandEngineers(player, units) end
   if O.shields then commandShields(player, units) end
   if O.towerOrders then commandTowers(player, units) end
 end
@@ -591,6 +696,8 @@ local function readCommon()
   if G.buildingOwner - G.buildingType ~= B.OWNER - B.TYPE then
     error("the building layout is not the one this module knows", 0)
   end
+  G.buildings = G.buildingType - B.TYPE
+  G.buildingsState = G.buildings - B.STATE_OFFSET
   G.range = rangeTable(scan(AOB_ACQUIRE, "the shooting code"))
 
   local command = scan(AOB_COMMAND, "the AI's siege engine orders")
@@ -751,10 +858,28 @@ local function enableCommands()
   expectBytes(command + CMD_EPILOGUE[1], CMD_EPILOGUE[2], "the end of the AI's siege orders")
   expectBytes(command + CMD_TOWER[1], CMD_TOWER[2], "the AI's siege tower orders")
   expectBytes(command + CMD_SHIELD[1], CMD_SHIELD[2], "the AI's shield orders")
-  G.list = core.allocate(4 * 256, true)
+  G.list = core.allocate(4 * 1024, true)
+  G.tlist = core.allocate(4 * 256, true)
   local collect = assemble(templates.collect, values({ LIST = G.list }))
-  local lua = luaFunction("the shield and siege tower orders", onSiegeCommand)
-  local tail = assemble(templates.commandEnd, { D = G.data, LUA = lua, COLLECT = collect })
+  local collectTents = assemble(templates.collectTents, values({ TLIST = G.tlist,
+    BUILDINGS = G.buildings }))
+  local lua = luaFunction("the shield, siege tower and engineer orders", onSiegeCommand)
+  local tail = assemble(templates.commandEnd, { D = G.data, LUA = lua, COLLECT = collect,
+    COLLECT_TENTS = collectTents })
+
+  if O.engineers then
+    O.engineers = try("engineers into their siege tents", function()
+      local order = scan(AOB_INSTRUCTION, "the troop order code")
+      F.entrance = core.exposeCode(callTarget(order + INSTRUCTION_ENTRANCE, "the entrance test"), 5, 1)
+      F.deselect = core.exposeCode(callTarget(order + INSTRUCTION_DESELECT, "deselectUnit"), 2, 1)
+      F.unselect = core.exposeCode(callTarget(order + INSTRUCTION_UNSELECT, "the selection"), 4, 1)
+      local engineer = scan(AOB_UPDATE_ENGINEER, "the engineer update")
+      F.required = core.exposeCode(callTarget(engineer + ENGINEER_REQUIRED, "the engineer count"), 2, 1)
+      local search = freeTileSearch()
+      G.pathFinder = operand(search, FREE_TILE_PF, "the path finder")
+      F.navigate = core.exposeCode(callTarget(search + FREE_TILE_NAVIGATE[1], "the area test"), 5, 1)
+    end)
+  end
 
   if O.towerOrders then
     O.towerOrders = try("siege tower orders", function()
@@ -785,8 +910,10 @@ return {
     O.dock = setting(config, "towers", "dock")
     O.towerOrders = setting(config, "towers", "orders")
     O.shields = setting(config, "shields", "enabled")
+    O.engineers = setting(config, "tents", "engineers")
     O.log = setting(config, "diagnostics", "log")
-    if not (O.catapults or O.freeSpots or O.tentRange or O.dock or O.towerOrders or O.shields) then
+    if not (O.catapults or O.freeSpots or O.tentRange or O.dock or O.towerOrders or O.shields
+        or O.engineers) then
       return
     end
     if not try("the whole module", readCommon) then return end
@@ -795,21 +922,24 @@ return {
     state.catapults = O.catapults and try("catapults and trebuchets choosing targets", enableCatapults)
     state.tents = (O.freeSpots or O.tentRange) and try("siege tent placement", enableTents)
     state.dock = O.dock and try("siege tower docking", enableDocking)
-    state.commands = (O.towerOrders or O.shields) and try("shield and siege tower orders", enableCommands)
+    state.commands = (O.towerOrders or O.shields or O.engineers)
+      and try("shield, siege tower and engineer orders", enableCommands)
 
     wr32(G.data + 0x00, state.catapults and 1 or 0)
     wr32(G.data + 0x04, (state.tents and O.freeSpots) and 1 or 0)
     wr32(G.data + 0x08, (state.tents and O.tentRange) and 1 or 0)
     wr32(G.data + 0x0C, O.variation)
     wr32(G.data + 0x10, state.dock and 1 or 0)
-    if not state.commands then O.shields, O.towerOrders = false, false end
+    if not state.commands then O.shields, O.towerOrders, O.engineers = false, false, false end
     state.towers = state.commands and O.towerOrders
+    state.engineers = state.commands and O.engineers
 
     local function word(on, ready) return not on and "off" or ready and "on" or "unavailable" end
     log(INFO, string.format("%s: catapults %s, tent spots %s, tents by range %s (up to %d tiles "
-      .. "short), tower docking %s, tower orders %s, shields %s", MODULE_NAME,
-      word(O.catapults, state.catapults), word(O.freeSpots, state.tents),
-      word(O.tentRange, state.tents), O.variation, word(O.dock, state.dock),
+      .. "short), engineers into tents %s, tower docking %s, tower orders %s, shields %s",
+      MODULE_NAME, word(O.catapults, state.catapults), word(O.freeSpots, state.tents),
+      word(O.tentRange, state.tents), O.variation,
+      word(setting(config, "tents", "engineers"), state.engineers), word(O.dock, state.dock),
       word(setting(config, "towers", "orders"), state.towers), word(O.shields, state.commands)))
   end,
 
@@ -817,7 +947,7 @@ return {
     if G.data ~= nil then
       for offset = 0x00, 0x10, 4 do wr32(G.data + offset, 0) end
     end
-    O.shields, O.towerOrders = false, false
+    O.shields, O.towerOrders, O.engineers = false, false, false
     for index = #patched, 1, -1 do
       core.writeCodeBytes(patched[index].address, patched[index].bytes)
     end

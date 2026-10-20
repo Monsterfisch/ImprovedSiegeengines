@@ -38,6 +38,14 @@ tents_variation_tooltip: |
   Each ranged engine's tent goes between 0 and this many tiles short of the engine's range
   (plus 2 tiles to spare for where the engine rolls out of the tent), picked a little
   differently for each tent. 0 puts every tent at the edge of the engine's range.
+tents_engineers: Engineers always get into their tent
+tents_engineers_tooltip: |
+  In the unmodified game an engineer whose way to a siege tent's entrance is blocked gives up
+  and stands around, and the tent never gets its engine. Now, every AI round, a tent that
+  still lacks engineers gets its entrance checked the game's own way - a blocked entrance
+  moves to a free side - and is sent its engineers again: first those that gave up on it or
+  stand stuck on the way, then idle engineers nearby (within 60 tiles). A tent walled in on
+  every side waits until a way opens, then gets its engineers.
 
 towers_group: Siege towers
 towers_group_descr: |
@@ -73,7 +81,7 @@ shields_enabled_tooltip: |
 
 diagnostics_group: Diagnostics
 diagnostics_group_descr: |
-  For testing. Writes a line to ucp3.log when an AI shield or siege tower is given a new place
+  For testing. Writes a line to ucp3.log when an AI shield, siege tower or engineer is given a new place
   to go.
 diagnostics_log: Write AI decisions to the log
 diagnostics_log_tooltip: Off for normal play.

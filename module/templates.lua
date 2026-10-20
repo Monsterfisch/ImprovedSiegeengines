@@ -1236,8 +1236,8 @@ templates.towerFind = [[
 -- 4. Shields and siege towers in the AI's command round
 ---------------------------------------------------------------------------------------
 
--- The player's ([D+0x130]) shields, siege towers and ranged engines, for lua: LIST = count,
--- then that many unit indices (at most 255). The unit array is too long for lua to walk.
+-- The player's ([D+0x130]) shields, siege towers, ranged engines and engineers, for lua: LIST =
+-- count, then that many unit indices (at most 1023). The unit array is too long for lua to walk.
 templates.collect = [[
   push ebx
   push esi
@@ -1265,9 +1265,11 @@ templates.collect = [[
   cmp eax, 41
   je .take
   cmp eax, 77
+  je .take
+  cmp eax, 30
   jne .next
 .take:
-  cmp edi, 255
+  cmp edi, 1023
   jge .done
   mov [LIST + 4 + edi*4], ebx
   inc edi
@@ -1283,6 +1285,47 @@ templates.collect = [[
   ret
 ]]
 
+-- The player's siege tents (building types 54 and 80-84), for lua: TLIST = count, then that many
+-- building indices (at most 255).
+templates.collectTents = [[
+  push ebx
+  push esi
+  push edi
+  xor edi, edi
+  mov esi, BUILDINGS + 0x32C
+  mov ebx, 1
+.building:
+  cmp ebx, 2000
+  jge .done
+  cmp word [esi + 0xD0], 0
+  je .next
+  movsx eax, word [esi + 0xD6]
+  cmp eax, [D + 0x130]
+  jne .next
+  movzx eax, word [esi + 0xD2]
+  cmp eax, 54
+  je .take
+  cmp eax, 80
+  jb .next
+  cmp eax, 84
+  ja .next
+.take:
+  cmp edi, 255
+  jge .done
+  mov [TLIST + 4 + edi*4], ebx
+  inc edi
+.next:
+  add esi, 0x32C
+  inc ebx
+  jmp .building
+.done:
+  mov [TLIST], edi
+  pop edi
+  pop esi
+  pop ebx
+  ret
+]]
+
 -- aiCommandSiegeEngineTribes(player), at its end: lua gives the shields and towers their
 -- orders, then the game's epilogue.
 templates.commandEnd = [[
@@ -1290,6 +1333,7 @@ templates.commandEnd = [[
   mov eax, [esp + 0x48]
   mov [D + 0x130], eax
   call COLLECT
+  call COLLECT_TENTS
   call LUA
   popad
   pop edi

@@ -1,6 +1,6 @@
 # Improved Siegeengines
 
-Version 1.0.2
+Version 1.0.3
 
 The AI's siege engines in the unmodified game waste themselves: catapults roll up to the wall
 they could have hit from far away, siege tents creep further out the longer a game goes until
@@ -26,6 +26,11 @@ far away in long games.
 **Tents for ranged engines go by range.** Catapult, trebuchet and fire ballista tents go where
 the engine can reach the castle: measured from the enemy's walls, towers and gatehouses, 0 to 10
 tiles (a setting) short of the engine's range, so it can hit things further inside too.
+
+**Engineers always get into their tent.** When a tent's entrance is blocked it moves to a free
+side, and engineers that gave up on a tent - or got stuck on the way - are sent again, with idle
+engineers nearby filling in. A tent walled in completely gets its engineers as soon as a way
+opens.
 
 **Siege towers dock at more walls.** Where the game finds no docking spot, a tower docks with its
 corner against a diagonal wall, or at the same wall up to three tiles along.

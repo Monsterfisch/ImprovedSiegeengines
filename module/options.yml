@@ -49,6 +49,14 @@ options:
       min: 0
       max: 30
       step: 1
+  - url: improved-siegeengines.tents.engineers
+    name: improved-siegeengines-tents-engineers
+    text: '{{tents_engineers}}'
+    tooltip: '{{tents_engineers_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
 
 - display: GroupBox
   category: [Improved Siegeengines]

@@ -111,6 +111,11 @@ def check(name, e):
     expect(free, BYTES['FREE_TILE_PROLOGUE'], 'FREE_TILE_PROLOGUE')
     operand(free, 'FREE_TILE_PF'); call(free + SITE['FREE_TILE_NAVIGATE'][0], 'navigate')
     call(scan('AOB_UPDATE_CATAPULT') + NUM['CATAPULT_SET_DESTINATION'], 'setDestinationForUnit')
+    order = scan('AOB_INSTRUCTION')
+    entrance = call(order + NUM['INSTRUCTION_ENTRANCE'], 'entrance test')
+    call(order + NUM['INSTRUCTION_DESELECT'], 'deselect'); call(order + NUM['INSTRUCTION_UNSELECT'], 'unselect')
+    required = call(scan('AOB_UPDATE_ENGINEER') + NUM['ENGINEER_REQUIRED'], 'engineer count')
+    print('         entrance test %X engineer count %X' % (entrance, required))
     print('%-8s harass %X tents %X/%X spots %X found %X location %X command %X freeTile %X' %
           (name, harass, angle, suit, find, found, location, cmd, free))
     print('         tribes %X stride %X units %X maxUnits %d ranges %s teams %X ticks %X flags %X' %
