@@ -5,8 +5,9 @@ catapults_group_descr: |
   and if nobody shoots it on the way it ends up right in front of the wall.
 
   With this on, an AI catapult or trebuchet first looks all the way round, as far as it can
-  throw, for the nearest enemy wall, tower, gatehouse or other building it can damage, and
-  shoots that from where it stands. It only rolls closer when there is really nothing in
+  throw, for the nearest enemy wall, tower or gatehouse and shoots that from where it stands.
+  Farms, workshops, houses and other civilian buildings are only shot at once no fortification
+  is left in reach. It only rolls closer when there is really nothing in
   reach. Fire ballistas already do this in the unmodified game and are left alone.
 catapults_enabled: Catapults and trebuchets pick their own targets
 catapults_enabled_tooltip: |

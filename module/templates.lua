@@ -8,8 +8,9 @@
       0x00 catapults on    0x04 tent spots freed    0x08 tents by range
       0x0C variation in tiles    0x10 tower docking on
     catapult search
-      0x20 x  0x24 y  0x28 owner  0x2C target player  0x30 reach  0x38 best distance^2
-      0x3C best tile  0x40 best x  0x44 best y  0x48 own team  0x4C row  0x50 distance^2
+      0x20 x  0x24 y  0x28 owner  0x2C target player  0x30 reach  0x34 reach^2
+      0x38 best score  0x3C best tile  0x40 best x  0x44 best y  0x48 own team  0x4C row
+      0x50 distance^2  0x54 civilian penalty
     tents
       0x60 band on  0x64 band low  0x68 band high  0x6C tribe owner  0x74 distance map player
       0x78 distance map tick  0x7C threat list tick  0x80 threat list owner  0x84 threats
@@ -153,7 +154,9 @@ templates.catapultHook = [[
   jmp RESUME
 ]]
 
--- The nearest enemy wall tile or damageable building within reach of (x, y). eax = 1 found.
+-- The nearest enemy wall, tower or gatehouse within reach of (x, y) (keep doors never, they
+-- cannot be destroyed); a civilian
+-- building only when none of those is in reach (CIVILIAN is added to its distance). eax = 1 found.
 templates.catapultSearch = [[
   push ebx
   push esi
@@ -164,8 +167,8 @@ templates.catapultSearch = [[
   mov [D + 0x48], eax
   mov eax, [D + 0x30]
   imul eax, eax
-  inc eax
-  mov [D + 0x38], eax
+  mov [D + 0x34], eax
+  mov dword [D + 0x38], 0x7FFFFFFF
   mov dword [D + 0x3C], 0
   mov ebp, [D + 0x30]
   neg ebp
@@ -187,6 +190,8 @@ templates.catapultSearch = [[
   mov edx, ebp
   imul edx, edx
   add eax, edx
+  cmp eax, [D + 0x34]
+  jg .nextCol
   cmp eax, [D + 0x38]
   jge .nextCol
   mov [D + 0x50], eax
@@ -208,6 +213,7 @@ templates.catapultSearch = [[
   jz .building
   test edx, 2
   jnz .nextCol
+  mov dword [D + 0x54], 0
   movzx eax, byte [WOWNER + ecx]
   and eax, 7
   inc eax
@@ -224,6 +230,18 @@ templates.catapultSearch = [[
   jl .nextCol
   cmp dword [HEALTH + edx*4], 0
   je .nextCol
+  cmp edx, 71
+  jb .notKeepDoor
+  cmp edx, 73
+  jbe .nextCol
+.notKeepDoor:
+  mov dword [D + 0x54], CIVILIAN
+  cmp edx, 511
+  ja .civilian
+  cmp byte [FORT + edx], 0
+  je .civilian
+  mov dword [D + 0x54], 0
+.civilian:
   movsx eax, word [BOWNER + eax]
 .owner:
   cmp eax, 1
@@ -244,6 +262,9 @@ templates.catapultSearch = [[
   je .nextCol
 .take:
   mov eax, [D + 0x50]
+  add eax, [D + 0x54]
+  cmp eax, [D + 0x38]
+  jge .nextCol
   mov [D + 0x38], eax
   mov [D + 0x3C], ecx
   mov [D + 0x40], ebx

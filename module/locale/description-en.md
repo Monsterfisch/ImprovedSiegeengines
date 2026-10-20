@@ -1,6 +1,6 @@
 # Improved Siegeengines
 
-Version 1.0.8
+Version 1.0.9
 
 The AI's siege engines in the unmodified game waste themselves: catapults roll up to the wall
 they could have hit from far away, siege tents creep further out the longer a game goes until
@@ -13,8 +13,8 @@ changed, except for where siege towers can dock, which helps the player's towers
 ## What it does
 
 **Catapults and trebuchets pick their own targets.** An AI catapult or trebuchet looks all the
-way round, as far as it can throw, for the nearest enemy wall, tower, gatehouse or other
-building it can damage, and shoots it from where it stands. It only rolls closer when nothing
+way round, as far as it can throw, for the nearest enemy wall, tower or gatehouse, and shoots
+it from where it stands. Civilian buildings are only shot at once no fortification is in reach. It only rolls closer when nothing
 at all is in reach. (The game's own search looks one direction at a time and ignores walls
 that have been shot down a bit, which is why catapults used to drive right up to the wall.)
 

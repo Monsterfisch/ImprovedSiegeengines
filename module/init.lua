@@ -170,6 +170,9 @@ local TILES = 0x13A10
 local MAX_TRIBES = 1251          -- 1250 troops, in both executables
 local MAX_THREATS = 4000
 local MELEE_REACH = 10
+-- Added to a civilian building's distance in the catapults' search: any fortification in reach
+-- comes first.
+local CIVILIAN_PENALTY = 0x1000000
 -- A ranged engine's tent stands this many tiles inside its reach: the tent's own 3x3 and the
 -- tile or two the engine rolls out beside it, so even the far end of the band is in range.
 local TENT_MARGIN = 6
@@ -201,9 +204,10 @@ local THREAT_KIND = {
   [55] = MELEE, [71] = MELEE, [73] = MELEE, [75] = MELEE,
 }
 
--- The castle a ranged engine's tent is measured from: walls plus these fortified buildings
--- (towers, gatehouses, the keep's fortifications).
-local FORTIFICATIONS = { 45, 46, 47, 48, 49, 60, 61, 71, 72, 73, 74, 75, 76, 77, 78 }
+-- The castle a ranged engine's tent is measured from and its engines shoot first: walls plus
+-- these fortified buildings (gatehouses, drawbridge, towers). The keep's doors (71-73) are left
+-- out - they cannot be destroyed.
+local FORTIFICATIONS = { 45, 46, 47, 48, 49, 60, 61, 74, 75, 76, 77, 78 }
 
 local ORDER_WALL, STATE_TO_WALL, STATE_DOCKING = 0x17, 0x65, 8
 local STATE_IDLE, STATE_TO_TENT = 0, 8
@@ -805,6 +809,8 @@ local function readCommon()
   end
 
   G.data = core.allocate(0x200, true)
+  G.fort = core.allocate(512, true)
+  for _, kind in ipairs(FORTIFICATIONS) do core.writeByte(G.fort + kind, 1) end
   wr32(G.data + 0x78, 0x7FFFFFFF)
   wr32(G.data + 0x7C, 0x7FFFFFFF)
 
@@ -825,7 +831,7 @@ local function values(extra)
     RANGE = G.range, TICKS = G.ticks, UNITS = G.units, US = G.unitsState, TRIBES = G.tribes,
     TSTRIDE = G.tribeStride, PLAYERS = G.players, MAXUNITS = G.maxUnits,
     MAXTRIBES = MAX_TRIBES, TILES = TILES, TILEAT = G.tileAt, WALLAT = G.wallAt,
-    CLEARAT = G.clearAt,
+    CLEARAT = G.clearAt, FORT = G.fort, CIVILIAN = CIVILIAN_PENALTY,
   }
   for name, value in pairs(extra or {}) do v[name] = value end
   return v
@@ -871,12 +877,10 @@ local function enableTents()
   -- tables lua fills once: threat kinds by unit type, fortified building types
   local tk = core.allocate(4 * 80, true)
   for kind, value in pairs(THREAT_KIND) do wr32(tk + 4 * kind, value) end
-  local fort = core.allocate(512, true)
-  for _, kind in ipairs(FORTIFICATIONS) do core.writeByte(fort + kind, 1) end
   local dist = core.allocate(400 * 400 * 2, true)
   local threats = core.allocate(12 * MAX_THREATS, true)
 
-  local v = values({ TK = tk, FORT = fort, DIST = dist, THREATS = threats,
+  local v = values({ TK = tk, DIST = dist, THREATS = threats,
     MELEE = MELEE_REACH, MAXTHREATS = MAX_THREATS, MARGIN = TENT_MARGIN,
     ENG_UT = operand(engineers, ENGINEERS_UNIT_TYPES, "the siege engine types"),
     ENG_BT = operand(engineers, ENGINEERS_TENT_TYPES, "the siege tent types"),
