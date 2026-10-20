@@ -186,9 +186,10 @@ local SLOT_BACKUP = { 0xBA, 0xBB, 0xBC }
 local SLOT_PATROL = { 0x0F, 0x10 }
 local SLOT_SIEGEDEF = { 0xBE, 0xBF }
 local SLOT_MAIN = { 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7 }
--- Every attack troop slot, for the last resort: a ranged troop of the attacking army.
+-- Every attack troop slot but the backup troops: where the attacking army's ranged troops are.
+-- The backup troops only get shields and towers once none of those are left.
 local SLOT_ATTACK = { 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xBE, 0xBF, 0x0C, 0xBD,
-  0x0F, 0x10, 0xBA, 0xBB, 0xBC }
+  0x0F, 0x10 }
 -- Archers, crossbowmen, Arab archers, slingers, horse archers, fire throwers.
 local RANGED_TROOPS = { [22] = true, [23] = true, [70] = true, [72] = true, [74] = true, [76] = true }
 
@@ -487,15 +488,15 @@ local shieldTargets = {}    -- shield tribe -> the engine it walks with (lua onl
 
 local function commandShields(player, units)
   if #units.shields == 0 then return end
-  -- Where a shield may go, best first: the moat fillers, the ranged siege engines, the backup
-  -- troops. The main army never gets one.
+  -- Where a shield may go: the moat fillers, the attacking army's ranged siege engines and its
+  -- ranged troops; the backup troops only once none of those are left.
   local places = troopsIn(player, SLOT_DIGGERS, {})
   for _, engine in ipairs(units.engines) do
     local tribe = s16(unitAt(engine) + U.TRIBE)
     places[#places + 1] = { tribe = (tribe > 0 and tribeAlive(tribe)) and tribe or 0,
       unit = engine, uid = rd32(unitAt(engine) + U.UID), engine = true }
   end
-  troopsIn(player, SLOT_BACKUP, places)
+  for _, troop in ipairs(rangedTroops(player)) do places[#places + 1] = troop end
   units.placesFound = #places
 
   local seen, shields = {}, {}
@@ -508,8 +509,8 @@ local function commandShields(player, units)
   end
 
   -- Nowhere to go: a shield that was walking with someone stops where it is and waits.
-  -- Nobody of those there: walk with one of the army's ranged troops instead.
-  if #places == 0 then places = rangedTroops(player); units.rangedFound = #places end
+  -- None of those left: the backup troops.
+  if #places == 0 then places = troopsIn(player, SLOT_BACKUP, {}); units.rangedFound = #places end
   if #places == 0 then
     for _, shield in ipairs(shields) do
       local base = tribeAt(shield)
@@ -620,14 +621,15 @@ local function commandTowers(player, units)
         F.assign(G.tribes, tribe, KIND_TOWER_WALLS)
         mode = "list"
       else
-        -- patrol troops first, then siege defence, the main army, the backup troops
+        -- patrol troops first, then siege defence, the main army, any ranged troop of the attack,
+        -- and the backup troops only when none of those are left
         if escorts == nil then
           escorts = {}
-          for _, slots in ipairs({ SLOT_PATROL, SLOT_SIEGEDEF, SLOT_MAIN, SLOT_BACKUP }) do
+          for _, slots in ipairs({ SLOT_PATROL, SLOT_SIEGEDEF, SLOT_MAIN }) do
             troopsIn(player, slots, escorts)
           end
-          -- none of those: one of the army's ranged troops
           if #escorts == 0 then escorts = rangedTroops(player) end
+          if #escorts == 0 then escorts = troopsIn(player, SLOT_BACKUP, {}) end
         end
         if #escorts > 0 then
           followers = followers + 1
@@ -744,7 +746,7 @@ local function onSiegeCommand()
     local k = units.skipped
     local summary = string.format("player %d, AI state %d: %d shields, %d towers, %d attack engines, "
       .. "%d engineers in the round; left out: %d not from a tent, %d of the siege camp, %d in no troop, "
-      .. "%d engines at home; shield places %s, ranged troops %s", player,
+      .. "%d engines at home; shield places %s, backup troops %s", player,
       rd32(G.players + player * P.STRIDE + 0x2BA4), #units.shields, #units.towers, #units.engines,
       #units.engineers, k.notTent, k.camp, k.noTroop, k.homeEngines,
       tostring(units.placesFound or "-"), tostring(units.rangedFound or "-"))
