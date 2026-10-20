@@ -54,8 +54,9 @@ towers_orders: AI siege towers find their own wall
 towers_orders_tooltip: |
   An AI siege tower that has nothing to do looks for the nearest enemy wall it can dock at
   (within 50 tiles) and goes there. If there is none - a castle built so that no tower can
-  dock anywhere - it walks with the army's patrol troops (or the main army) like a big shield
-  until a wall comes in reach.
+  dock anywhere - it walks with the army like a big shield until a wall comes in reach: with
+  the patrol troops if there are any, else the siege defence troops, else the main army, else
+  the backup troops.
 
 shields_group: Portable shields
 shields_group_descr: |
@@ -66,8 +67,9 @@ shields_enabled: Shields walk with their own troops
 shields_enabled_tooltip: |
   AI shields go to the troops filling in the moat first, then to the ranged siege engines,
   then to the backup troops - never to the main army, and only to units of their own player
-  or an ally. When there are more shields than places they share: each new shield goes where
-  the fewest are, and a shield stays where it is as long as that place is still there.
+  or an ally. The shields are spread evenly over the places there are (each new shield goes
+  where the fewest are, a shield stays where it is as long as that place keeps no more than
+  its share). With nowhere to go a shield stops where it is and waits.
 
 diagnostics_group: Diagnostics
 diagnostics_group_descr: |

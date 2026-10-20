@@ -24,7 +24,7 @@
 
   4. Portable shields walk with the AI's own troops only: the moat fillers first, then the
      ranged siege engines, then the backup troops - never the main army, never a deer. More
-     shields than places simply share.
+     shields than places are spread evenly; with nobody to walk with they wait.
 
   Only the AI's siege engines are changed, except the docking in 3, which every tower uses.
 ]]
@@ -156,6 +156,7 @@ local RANGED_ENGINES = { [39] = true, [40] = true, [41] = true, [77] = true }
 local SLOT_DIGGERS = { 0x11 }
 local SLOT_BACKUP = { 0xBA, 0xBB, 0xBC }
 local SLOT_PATROL = { 0x0F, 0x10 }
+local SLOT_SIEGEDEF = { 0xBE, 0xBF }
 local SLOT_MAIN = { 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7 }
 
 -- Who could hit a siege engine: a projectile id (its reach is the game's range table) or melee.
@@ -381,18 +382,33 @@ local function commandShields(player, units)
       unit = engine, uid = rd32(unitAt(engine) + U.UID), engine = true }
   end
   troopsIn(player, SLOT_BACKUP, places)
-  if #places == 0 then return end
 
   local seen, shields = {}, {}
   for _, unit in ipairs(units.shields) do
     local tribe = s16(unitAt(unit) + U.TRIBE)
     if not seen[tribe] then
-      seen[tribe] = true
+      seen[tribe] = { unit = unit }
       shields[#shields + 1] = tribe
     end
   end
 
-  -- Keep each shield where it already is if that place is still on the list.
+  -- Nowhere to go: a shield that was walking with someone stops where it is and waits.
+  if #places == 0 then
+    for _, shield in ipairs(shields) do
+      local base = tribeAt(shield)
+      if s16(base + G.followOffset) ~= 0 or shieldTargets[shield] ~= nil then
+        moveTribe(shield, seen[shield].unit)
+        wr16(base + G.followOffset, 0)
+        shieldTargets[shield] = nil
+        diag("player %d: shield troop %d has nobody to walk with and waits", player, shield)
+      end
+    end
+    return
+  end
+
+  -- Keep each shield where it already is while that place is still on the list and has no
+  -- more than its share, so the shields stay spread evenly over the places there are.
+  local share = math.max(1, #shields // #places)
   local counts, assigned = {}, {}
   for _, shield in ipairs(shields) do
     local base = tribeAt(shield)
@@ -405,7 +421,7 @@ local function commandShields(player, units)
       else
         same = link == place.tribe and linkUid == place.uid
       end
-      if same then
+      if same and (counts[i] or 0) < share then
         assigned[shield] = i
         counts[i] = (counts[i] or 0) + 1
         break
@@ -487,7 +503,13 @@ local function commandTowers(player, units)
         F.assign(G.tribes, tribe, KIND_TOWER_WALLS)
         mode = "list"
       else
-        escorts = escorts or troopsIn(player, SLOT_MAIN, troopsIn(player, SLOT_PATROL, {}))
+        -- patrol troops first, then siege defence, the main army, the backup troops
+        if escorts == nil then
+          escorts = {}
+          for _, slots in ipairs({ SLOT_PATROL, SLOT_SIEGEDEF, SLOT_MAIN, SLOT_BACKUP }) do
+            troopsIn(player, slots, escorts)
+          end
+        end
         if #escorts > 0 then
           followers = followers + 1
           moveTribe(tribe, escorts[(followers - 1) % #escorts + 1].unit)
