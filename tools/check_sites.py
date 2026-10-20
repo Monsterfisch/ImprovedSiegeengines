@@ -76,7 +76,9 @@ def check(name, e):
     cone = scan('AOB_CONE')
     btype, bowner, health = operand(cone, 'CONE_TYPE'), operand(cone, 'CONE_OWNER'), operand(cone, 'CONE_HEALTH')
     need(bowner - btype == 4, name + ' building layout')
-    rng = operand(scan('AOB_ACQUIRE'), 'ACQUIRE_RANGE')
+    acq = scan('AOB_ACQUIRE') + NUM['ACQUIRE_RANGE']
+    expect(acq, BYTES['RANGE_READ'], 'RANGE_READ')
+    rng = e.u32(acq + 3)
     ranges = [e.i32(rng + 4 * i) for i in (1, 2, 3, 0x25)]
     tents = scan('AOB_TENTS')
     angle = call(tents + NUM['TENTS_ANGLE_CALL'], 'angle call')
@@ -108,7 +110,7 @@ def check(name, e):
     free = scan('AOB_FREE_TILE', NUM['FREE_TILE_START'])
     expect(free, BYTES['FREE_TILE_PROLOGUE'], 'FREE_TILE_PROLOGUE')
     operand(free, 'FREE_TILE_PF'); call(free + SITE['FREE_TILE_NAVIGATE'][0], 'navigate')
-    scan('AOB_SET_DESTINATION')
+    call(scan('AOB_UPDATE_CATAPULT') + NUM['CATAPULT_SET_DESTINATION'], 'setDestinationForUnit')
     print('%-8s harass %X tents %X/%X spots %X found %X location %X command %X freeTile %X' %
           (name, harass, angle, suit, find, found, location, cmd, free))
     print('         tribes %X stride %X units %X maxUnits %d ranges %s teams %X ticks %X flags %X' %

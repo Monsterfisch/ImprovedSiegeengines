@@ -61,9 +61,13 @@ local CONE_TYPE = { 0x24E, { 0x0F, 0xBF, 0x8F } }                   -- movsx ecx
 local CONE_HEALTH = { 0x255, { 0x83, 0x3C, 0x8D } }                 -- cmp [ecx*4 + table], 0
 local CONE_OWNER = { 0x263, { 0x0F, 0xBF, 0x97 } }                  -- movsx edx, [edi + owner]
 
--- acquireShootTarget: the range of every projectile, in tiles.
+-- acquireShootTarget: the range of every projectile, in tiles - the only code that reads the
+-- table. The Rebalancer replaces that instruction with a jump to its own per-unit ranges, which
+-- read the same table again: then it is found in the code the jump leads to.
 local AOB_ACQUIRE = "83 EC 40 53 56 57 8B 7C 24 50 69 FF 90 04 00 00 8B F1 0F BF 84 37 AA 06 00 00"
-local ACQUIRE_RANGE = { 0x131, { 0x8B, 0x04, 0x85 } }
+local ACQUIRE_RANGE = 0x131
+local RANGE_READ = { 0x8B, 0x04, 0x85 }      -- mov eax, [eax*4 + ranges]
+local RANGE_SEARCH = 0x100                   -- how far into a replacement to look for it
 
 -- placeSiegeTentsAndAssignEngineers: the two ways a siege tent is placed.
 local AOB_TENTS = "83 EC 10 89 4C 24 08 8B 4C 24 14 0F BE 81 ? ? ? ?"
@@ -119,7 +123,10 @@ local FREE_TILE_SIZE = 9
 local FREE_TILE_PF = { 0x5A, { 0xB9 } }
 local FREE_TILE_NAVIGATE = { 0x67, { 0xE8 } }
 
-local AOB_SET_DESTINATION = "83 EC 08 8B 44 24 0C 8B D0 69 D2 90 04 00 00"
+-- UpdateCatapult: its call of setDestinationForUnit. Several modules hook that function's own
+-- first bytes, so it is found through a call (and called through their hooks).
+local AOB_UPDATE_CATAPULT = "83 EC 74 53 8B 1D ? ? ? ? 55 56"
+local CATAPULT_SET_DESTINATION = 0x87F
 local AOB_TEAMS = "8B 0C 85 ? ? ? ? 8B 44 24 30 3B 0C 85 ? ? ? ?"
 local TEAMS_OPERAND = 0x03
 local AOB_TICKS = "8B 87 50 0A 00 00 8B 8F 98 09 00 00 8B 15"
@@ -210,9 +217,34 @@ local function operand(base, site, purpose)
   return rd32(base + site[1] + #site[2])
 end
 
+local function relative(at)
+  return (at + 5 + rd32(at + 1)) & 0xFFFFFFFF
+end
+
 local function callTarget(at, purpose)
   expectBytes(at, { 0xE8 }, purpose)
-  return at + 5 + rd32(at + 1)
+  return relative(at)
+end
+
+local function matches(address, bytes)
+  for index, value in ipairs(bytes) do
+    if byte(address + index - 1) ~= value then return false end
+  end
+  return true
+end
+
+-- The projectile range table: read where the game reads it, or where whoever replaced that
+-- instruction with a jump reads it now.
+local function rangeTable(acquire)
+  local at = acquire + ACQUIRE_RANGE
+  if matches(at, RANGE_READ) then return rd32(at + #RANGE_READ) end
+  if byte(at) == 0xE9 then
+    local code = relative(at)
+    for offset = 0, RANGE_SEARCH do
+      if matches(code + offset, RANGE_READ) then return rd32(code + offset + #RANGE_READ) end
+    end
+  end
+  error(string.format("the range table at 0x%X is not read the way this module knows", at), 0)
 end
 
 -- FASM gets a fixed 64 KB for source, symbols and output: strip the script, pass only what it
@@ -559,7 +591,7 @@ local function readCommon()
   if G.buildingOwner - G.buildingType ~= B.OWNER - B.TYPE then
     error("the building layout is not the one this module knows", 0)
   end
-  G.range = operand(scan(AOB_ACQUIRE, "the shooting code"), ACQUIRE_RANGE, "the range table")
+  G.range = rangeTable(scan(AOB_ACQUIRE, "the shooting code"))
 
   local command = scan(AOB_COMMAND, "the AI's siege engine orders")
   G.command = command
@@ -634,7 +666,7 @@ local function enableTents()
   local tribeId = operand(find, SPOT_TRIBE, "the tent spots")
   if three - tribeId ~= 8 then error("the tent spots are not laid out as this module knows", 0) end
   expectBytes(find + SPOT_FOUND[1], SPOT_FOUND[2], "the tent spot search")
-  local found = find + SPOT_FOUND[1] + 6 + rd32(find + SPOT_FOUND[1] + 2)
+  local found = (find + SPOT_FOUND[1] + 6 + rd32(find + SPOT_FOUND[1] + 2)) & 0xFFFFFFFF
   local location = scan(AOB_LOCATION, "the siege tent location search")
   expectBytes(location + LOCATION_HOOK[1], LOCATION_HOOK[2], "the siege tent location search")
   local engineers = scan(AOB_ENGINEERS, "the siege engine types")
@@ -714,7 +746,8 @@ local function enableCommands()
   local command = G.command
   F.move = core.exposeCode(callTarget(command + CMD_MOVE[1], "the troop move order"), 7, 1)
   F.assign = core.exposeCode(callTarget(command + CMD_ASSIGN[1], "the troop target order"), 3, 1)
-  F.setDestination = core.exposeCode(scan(AOB_SET_DESTINATION, "setDestinationForUnit"), 5, 1)
+  F.setDestination = core.exposeCode(callTarget(scan(AOB_UPDATE_CATAPULT, "the catapult update")
+    + CATAPULT_SET_DESTINATION, "setDestinationForUnit"), 5, 1)
   expectBytes(command + CMD_EPILOGUE[1], CMD_EPILOGUE[2], "the end of the AI's siege orders")
   expectBytes(command + CMD_TOWER[1], CMD_TOWER[2], "the AI's siege tower orders")
   expectBytes(command + CMD_SHIELD[1], CMD_SHIELD[2], "the AI's shield orders")
