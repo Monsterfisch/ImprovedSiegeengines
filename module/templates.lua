@@ -99,7 +99,8 @@ templates.clearAt = [[
 
 -- harassBuildingsWithSiegeAI, where the game is about to start its own direction-by-direction
 -- search: esi = the unit (UnitsState relative), ebp = its owner, ecx = the projectile kind
--- (2 catapult, 3 trebuchet). A target found here is shot the game's own way (SHOOT).
+-- (2 catapult, 3 trebuchet). A target found here is shot the game's own way (SHOOT), with the
+-- engine turned to face it first, as the game's own search does when it finds one.
 templates.catapultHook = [[
   cmp dword [D + 0x00], 0
   je .vanilla
@@ -129,6 +130,20 @@ templates.catapultHook = [[
   mov [ALG_Y], eax
   mov eax, [D + 0x3C]
   mov [ALG_TILE], eax
+  push dword [D + 0x44]
+  push dword [D + 0x40]
+  push dword [D + 0x24]
+  push dword [D + 0x20]
+  mov ecx, DIRSTATE
+  call ORIENT
+  movzx eax, word [ALG_ORIENT]
+  and eax, 7
+  mov [esi + 0x8C8], ax
+  sub eax, [MAPORIENT]
+  and eax, 7
+  mov [esi + 0x668], ax
+  mov byte [esi + 0xA23], 0
+  mov word [esi + 0x958], 0
   popad
   jmp SHOOT
 .none:
@@ -550,7 +565,7 @@ templates.prepareTent = [[
   jmp .out
 .proj:
   mov ebx, [RANGE + edx*4]
-  sub ebx, 2
+  sub ebx, MARGIN
   cmp ebx, 3
   jl .out
   mov eax, esi

@@ -36,7 +36,8 @@ tents_range_tooltip: |
 tents_variation: How much closer (tiles)
 tents_variation_tooltip: |
   Each ranged engine's tent goes between 0 and this many tiles short of the engine's range
-  (plus 2 tiles to spare for where the engine rolls out of the tent), picked a little
+  (always at least 6 tiles inside the range, for the tent and where the engine rolls out of
+  it, so even the farthest tent can still hit), picked a little
   differently for each tent. 0 puts every tent at the edge of the engine's range.
 tents_engineers: Engineers always get into their tent
 tents_engineers_tooltip: |

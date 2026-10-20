@@ -53,7 +53,8 @@ local HARASS_HOOK_SIZE = 5
 local HARASS_RESULT = { 0x1C0, { 0xC7, 0x05 } }                     -- mov [ALG_ResultTile2], 0
 local HARASS_TARGET_X = { 0x306, { 0x8B, 0x3D } }                   -- mov edi, [ALG_TargetX]
 local HARASS_TARGET_Y = { 0x30C, { 0x8B, 0x15 } }                   -- mov edx, [ALG_TargetY]
-local HARASS_SHOOT = 0x306                                          -- ... and on to the shot
+local HARASS_SHOOT = 0x306
+local HARASS_MAP_ORIENTATION = { 0x2EA, { 0x2B, 0x05 } }  -- sub eax, [map orientation]                                          -- ... and on to the shot
 
 -- findBestAttackTargetTileWithHeightAndOwner: the building array and the "can be damaged" table.
 local AOB_CONE = "83 EC 24 83 C8 FF 55 56 8B F1 89 44 24 18"
@@ -109,6 +110,9 @@ local CMD_FOLLOW_UID = { 0x1DC, { 0x89, 0x96 } }
 local CMD_LEADER = { 0x1E2, { 0x0F, 0xBF, 0xB8 } }
 local CMD_BACKLINK = { 0x1EF, { 0x66, 0x89, 0x88 } }
 local CMD_MOVE = { 0x22A, { 0xE8 } }                 -- call giveTribeMoveInstruction
+local CMD_DIRECTIONS = { 0x241, { 0xB9 } }       -- mov ecx, DirectionAlgorithmState
+local CMD_ORIENT = { 0x246, { 0xE8 } }           -- call calculatePreferredRelativeOrientation
+local CMD_ORIENTATION = { 0x24B, { 0x66, 0x8B, 0x15 } }   -- mov dx, [ALG_Orientation]
 local CMD_NEXT = 0x265                               -- add ebx, 0x490: the next unit
 local CMD_LAST = { 0x26B, { 0x81, 0xFB } }           -- cmp ebx, units[last].type
 local CMD_EPILOGUE = { 0x27B, { 0x5F, 0x5E, 0x5D, 0x5B, 0x83, 0xC4, 0x14, 0xC2, 0x04, 0x00 } }
@@ -165,6 +169,9 @@ local TILES = 0x13A10
 local MAX_TRIBES = 1251          -- 1250 troops, in both executables
 local MAX_THREATS = 4000
 local MELEE_REACH = 10
+-- A ranged engine's tent stands this many tiles inside its reach: the tent's own 3x3 and the
+-- tile or two the engine rolls out beside it, so even the far end of the band is in range.
+local TENT_MARGIN = 6
 local TOWER_RADIUS = 50
 local TOWER_TESTS = 24
 local WIDE_STRIDE = 0x177BC
@@ -755,6 +762,10 @@ local function enableCatapults()
     ALG_X = operand(harass, HARASS_TARGET_X, "the search result"),
     ALG_Y = operand(harass, HARASS_TARGET_Y, "the search result"),
     SHOOT = harass + HARASS_SHOOT,
+    MAPORIENT = operand(harass, HARASS_MAP_ORIENTATION, "the map orientation"),
+    DIRSTATE = operand(G.command, CMD_DIRECTIONS, "the direction finder"),
+    ORIENT = callTarget(G.command + CMD_ORIENT[1], "the direction finder"),
+    ALG_ORIENT = operand(G.command, CMD_ORIENTATION, "the direction finder"),
     RESUME = harass + HARASS_HOOK[1] + HARASS_HOOK_SIZE,
   }))
   patch(harass + HARASS_HOOK[1], jumpCode(harass + HARASS_HOOK[1], hook, HARASS_HOOK_SIZE),
@@ -787,7 +798,7 @@ local function enableTents()
   local threats = core.allocate(12 * MAX_THREATS, true)
 
   local v = values({ TK = tk, FORT = fort, DIST = dist, THREATS = threats,
-    MELEE = MELEE_REACH, MAXTHREATS = MAX_THREATS,
+    MELEE = MELEE_REACH, MAXTHREATS = MAX_THREATS, MARGIN = TENT_MARGIN,
     ENG_UT = operand(engineers, ENGINEERS_UNIT_TYPES, "the siege engine types"),
     ENG_BT = operand(engineers, ENGINEERS_TENT_TYPES, "the siege tent types"),
     THREE = three, TID = tribeId, FOUND = found, CONTINUE = find + SPOT_HOOK[1] + SPOT_HOOK_SIZE,
