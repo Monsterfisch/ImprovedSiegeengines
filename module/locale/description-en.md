@@ -1,6 +1,6 @@
 # Improved Siegeengines
 
-Version 1.0.6
+Version 1.0.7
 
 The AI's siege engines in the unmodified game waste themselves: catapults roll up to the wall
 they could have hit from far away, siege tents creep further out the longer a game goes until

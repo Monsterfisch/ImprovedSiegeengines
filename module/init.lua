@@ -449,7 +449,8 @@ local function attackEngine(index, player)
 end
 
 local function siegeUnits(player)
-  local found = { shields = {}, towers = {}, engines = {}, engineers = {} }
+  local found = { shields = {}, towers = {}, engines = {}, engineers = {},
+    skipped = { notTent = 0, camp = 0, noTroop = 0, homeEngines = 0 } }
   for i = 1, math.min(rd32(G.list), 1023) do
     local index = rd32(G.list + 4 * i)
     local a = unitAt(index)
@@ -457,10 +458,20 @@ local function siegeUnits(player)
     if kind == UT.ENGINEER then
       if unitAlive(index) then found.engineers[#found.engineers + 1] = index end
     elseif RANGED_ENGINES[kind] then
-      if unitAlive(index) and attackEngine(index, player) then
-        found.engines[#found.engines + 1] = index
+      if unitAlive(index) then
+        if attackEngine(index, player) then
+          found.engines[#found.engines + 1] = index
+        else
+          found.skipped.homeEngines = found.skipped.homeEngines + 1
+        end
       end
-    elseif byte(a + U.SIEGE_BYTE) == 3 and u16(a + U.BEHAVIOUR) ~= 0x15 and s16(a + U.TRIBE) > 0 then
+    elseif byte(a + U.SIEGE_BYTE) ~= 3 then
+      found.skipped.notTent = found.skipped.notTent + 1
+    elseif u16(a + U.BEHAVIOUR) == 0x15 then
+      found.skipped.camp = found.skipped.camp + 1
+    elseif s16(a + U.TRIBE) <= 0 then
+      found.skipped.noTroop = found.skipped.noTroop + 1
+    else
       local list = kind == UT.SHIELD and found.shields or found.towers
       list[#list + 1] = index
     end
@@ -485,6 +496,7 @@ local function commandShields(player, units)
       unit = engine, uid = rd32(unitAt(engine) + U.UID), engine = true }
   end
   troopsIn(player, SLOT_BACKUP, places)
+  units.placesFound = #places
 
   local seen, shields = {}, {}
   for _, unit in ipairs(units.shields) do
@@ -497,7 +509,7 @@ local function commandShields(player, units)
 
   -- Nowhere to go: a shield that was walking with someone stops where it is and waits.
   -- Nobody of those there: walk with one of the army's ranged troops instead.
-  if #places == 0 then places = rangedTroops(player) end
+  if #places == 0 then places = rangedTroops(player); units.rangedFound = #places end
   if #places == 0 then
     for _, shield in ipairs(shields) do
       local base = tribeAt(shield)
@@ -719,6 +731,8 @@ local function commandEngineers(player, units)
   end
 end
 
+local lastSummary = {}    -- player -> the round summary last written to the log
+
 local function onSiegeCommand()
   local player = rd32(G.data + 0x130)
   if player < 1 or player > 8 then return end
@@ -726,6 +740,19 @@ local function onSiegeCommand()
   if O.engineers then commandEngineers(player, units) end
   if O.shields then commandShields(player, units) end
   if O.towerOrders then commandTowers(player, units) end
+  if O.log then
+    local k = units.skipped
+    local summary = string.format("player %d, AI state %d: %d shields, %d towers, %d attack engines, "
+      .. "%d engineers in the round; left out: %d not from a tent, %d of the siege camp, %d in no troop, "
+      .. "%d engines at home; shield places %s, ranged troops %s", player,
+      rd32(G.players + player * P.STRIDE + 0x2BA4), #units.shields, #units.towers, #units.engines,
+      #units.engineers, k.notTent, k.camp, k.noTroop, k.homeEngines,
+      tostring(units.placesFound or "-"), tostring(units.rangedFound or "-"))
+    if summary ~= lastSummary[player] then
+      lastSummary[player] = summary
+      diag("%s", summary)
+    end
+  end
 end
 
 ---------------------------------------------------------------------------------------
