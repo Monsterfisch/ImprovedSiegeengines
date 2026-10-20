@@ -75,7 +75,8 @@ shields_group_descr: |
   troop leader's place - even a deer.
 shields_enabled: Shields walk with their own troops
 shields_enabled_tooltip: |
-  AI shields go to the troops filling in the moat first, then to the ranged siege engines,
+  AI shields go to the troops filling in the moat first, then to the attacking army's ranged
+  siege engines (not the ones the AI keeps at home to defend its castle),
   then to the backup troops - never to the main army, and only to units of their own player
   or an ally. The shields are spread evenly over the places there are (each new shield goes
   where the fewest are, a shield stays where it is as long as that place keeps no more than

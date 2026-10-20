@@ -158,7 +158,8 @@ local U = { STRIDE = 0x490, STATE = 0x8C, TYPE = 0x8E, OWNER = 0x96, UID = 0x98,
   TILE = 0xD4, DYING = 0x2A0, ORDER_STATE = 0x2C0, TRIBE = 0x2D8, TARGET = 0x336,
   TARGETING = 0x39C, WALL_TILE = 0x3A8, DOCK_TILE = 0x3B8, SIEGE_BYTE = 0x3FE, WALL_X = 0x3E8,
   WALL_Y = 0x3EA, BEHAVIOUR = 0x42A, STATE_OFFSET = 0x614 }
-local P = { STRIDE = 0x39F4, ATTACKED = 0x2BD8, TRIBE_IDS = 0x310C, TRIBE_UIDS = 0x329C }
+local P = { STRIDE = 0x39F4, HAS_KEEP = 0x94, KEEP_TILE = 0x1E0, ATTACKED = 0x2BD8, TRIBE_IDS = 0x310C,
+  TRIBE_UIDS = 0x329C }
 local T = { OWNER = 0x2C, UID = 0x34, STATE = 0x40, LEADER = 0x5A }
 local MAP = { FLAGS = 0x165160, WALL_OWNER = 0x2C6E50, AREA = 0x363ED0, Y_OF_TILE = 0x742B90,
   ROWS = 0x8A40F8, VALID = 0x71BA90, BUILDINGS = 0x2029B0, UNITS = 0x23D7E0 }
@@ -423,7 +424,31 @@ end
 -- The player's shields, towers and ranged engines (collected in asm), as the game's own loop
 -- picks shields and towers: from a siege tent (byte 3), not the siege camp's own (behaviour
 -- 0x15) and in a troop.
-local function siegeUnits()
+-- Where a player's keep stands, or nil.
+local function keepAt(player)
+  local base = G.players + player * P.STRIDE
+  if rd32(base + P.HAS_KEEP) == 0 then return nil end
+  local tile = rd32(base + P.KEEP_TILE)
+  if tile <= 0 or tile >= TILES then return nil end
+  local y = u16(G.tileY + 2 * tile)
+  return tile - rd32(G.rows + 12 * y), y
+end
+
+-- A ranged engine of the attacking army, not one the AI keeps at home: built in a siege tent
+-- (or sent on a raid), and nearer the attacked castle's keep than its own.
+local function attackEngine(index, player)
+  local a = unitAt(index)
+  if byte(a + U.SIEGE_BYTE) ~= 3 and u16(a + U.BEHAVIOUR) ~= 0x16 then return false end
+  local attacked = rd32(G.players + player * P.STRIDE + P.ATTACKED)
+  if attacked < 1 or attacked > 8 then return false end
+  local ex, ey = keepAt(attacked)
+  local ox, oy = keepAt(player)
+  if ex == nil or ox == nil then return true end
+  local x, y = s16(a + U.X), s16(a + U.Y)
+  return (x - ex) ^ 2 + (y - ey) ^ 2 < (x - ox) ^ 2 + (y - oy) ^ 2
+end
+
+local function siegeUnits(player)
   local found = { shields = {}, towers = {}, engines = {}, engineers = {} }
   for i = 1, math.min(rd32(G.list), 1023) do
     local index = rd32(G.list + 4 * i)
@@ -432,7 +457,9 @@ local function siegeUnits()
     if kind == UT.ENGINEER then
       if unitAlive(index) then found.engineers[#found.engineers + 1] = index end
     elseif RANGED_ENGINES[kind] then
-      if unitAlive(index) then found.engines[#found.engines + 1] = index end
+      if unitAlive(index) and attackEngine(index, player) then
+        found.engines[#found.engines + 1] = index
+      end
     elseif byte(a + U.SIEGE_BYTE) == 3 and u16(a + U.BEHAVIOUR) ~= 0x15 and s16(a + U.TRIBE) > 0 then
       local list = kind == UT.SHIELD and found.shields or found.towers
       list[#list + 1] = index
@@ -695,7 +722,7 @@ end
 local function onSiegeCommand()
   local player = rd32(G.data + 0x130)
   if player < 1 or player > 8 then return end
-  local units = siegeUnits()
+  local units = siegeUnits(player)
   if O.engineers then commandEngineers(player, units) end
   if O.shields then commandShields(player, units) end
   if O.towerOrders then commandTowers(player, units) end
