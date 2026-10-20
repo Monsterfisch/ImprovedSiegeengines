@@ -1,0 +1,77 @@
+catapults_group: Catapults and trebuchets
+catapults_group_descr: |
+  In the unmodified game an AI catapult only looks for a target one direction at a time, and
+  only at walls that still stand tall. When it finds nothing it rolls on towards the castle,
+  and if nobody shoots it on the way it ends up right in front of the wall.
+
+  With this on, an AI catapult or trebuchet first looks all the way round, as far as it can
+  throw, for the nearest enemy wall, tower, gatehouse or other building it can damage, and
+  shoots that from where it stands. It only rolls closer when there is really nothing in
+  reach. Fire ballistas already do this in the unmodified game and are left alone.
+catapults_enabled: Catapults and trebuchets pick their own targets
+catapults_enabled_tooltip: |
+  Off: AI catapults and trebuchets choose their targets exactly as in the unmodified game.
+
+tents_group: Siege tents
+tents_group_descr: |
+  The AI picks its siege tent spots from a list it works out for each castle. In the
+  unmodified game a spot that was used once stays marked as used for the rest of the game,
+  so in a long game every good spot is gone and the tents end up further and further away -
+  until the trebuchets built in them cannot reach the castle and just stand there.
+
+  The two switches below fix that separately. Only AI players are affected.
+tents_free: Reuse safe tent spots
+tents_free_tooltip: |
+  A tent spot can be used again once the troop that built there is gone, nothing stands on
+  it any more, and no enemy soldier is close enough to attack an engine there (archers,
+  crossbowmen, slingers, horse archers and fire throwers by their range - also when they
+  stand on towers - and anyone with a sword or spear within 10 tiles). Ballistas do not count:
+  their range is so long that they would rule out almost every spot.
+tents_range: Place ranged engine tents by range
+tents_range_tooltip: |
+  Tents for catapults, trebuchets and fire ballistas go where the engine can reach the castle:
+  measured from the enemy's walls, towers and gatehouses, a little short of the engine's
+  range, so it can also hit things further inside. Tents for siege towers, rams and shields
+  are placed as before. If there is no such spot the AI places the tent the way it always did.
+tents_variation: How much closer (tiles)
+tents_variation_tooltip: |
+  Each ranged engine's tent goes between 0 and this many tiles short of the engine's range
+  (plus 2 tiles to spare for where the engine rolls out of the tent), picked a little
+  differently for each tent. 0 puts every tent at the edge of the engine's range.
+
+towers_group: Siege towers
+towers_group_descr: |
+  In the unmodified game a siege tower can only dock at a straight stretch of wall at least
+  three tiles long with a clear 3x3 square in front of it, and the AI only sends towers at
+  walls from its own list of such places - often late, and never at a castle without them.
+towers_dock: Siege towers dock at more walls
+towers_dock_tooltip: |
+  Where the game finds no spot, a tower docks with the corner of its 3x3 against a diagonal
+  wall, and if that does not work either, at the same wall up to three tiles along. This is
+  for every siege tower, the player's too. It used to be part of Smarter Walls, which no
+  longer does it from version 1.0.16 on.
+towers_orders: AI siege towers find their own wall
+towers_orders_tooltip: |
+  An AI siege tower that has nothing to do looks for the nearest enemy wall it can dock at
+  (within 50 tiles) and goes there. If there is none - a castle built so that no tower can
+  dock anywhere - it walks with the army's patrol troops (or the main army) like a big shield
+  until a wall comes in reach.
+
+shields_group: Portable shields
+shields_group_descr: |
+  AI portable shields in the unmodified game only ever follow the backup troops, at most
+  three of them, and a shield whose troop is gone can end up chasing whatever unit took its
+  troop leader's place - even a deer.
+shields_enabled: Shields walk with their own troops
+shields_enabled_tooltip: |
+  AI shields go to the troops filling in the moat first, then to the ranged siege engines,
+  then to the backup troops - never to the main army, and only to units of their own player
+  or an ally. When there are more shields than places they share: each new shield goes where
+  the fewest are, and a shield stays where it is as long as that place is still there.
+
+diagnostics_group: Diagnostics
+diagnostics_group_descr: |
+  For testing. Writes a line to ucp3.log when an AI shield or siege tower is given a new place
+  to go.
+diagnostics_log: Write AI decisions to the log
+diagnostics_log_tooltip: Off for normal play.

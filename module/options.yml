@@ -1,0 +1,104 @@
+meta:
+  version: 1.0.0
+options:
+- display: GroupBox
+  category: [Improved Siegeengines]
+  header: '{{catapults_group}}'
+  text: '{{catapults_group_descr}}'
+  hasHeader: true
+  children:
+  - url: improved-siegeengines.catapults.enabled
+    name: improved-siegeengines-catapults-enabled
+    text: '{{catapults_enabled}}'
+    tooltip: '{{catapults_enabled_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+
+- display: GroupBox
+  category: [Improved Siegeengines]
+  header: '{{tents_group}}'
+  text: '{{tents_group_descr}}'
+  hasHeader: true
+  children:
+  - url: improved-siegeengines.tents.free
+    name: improved-siegeengines-tents-free
+    text: '{{tents_free}}'
+    tooltip: '{{tents_free_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: improved-siegeengines.tents.range
+    name: improved-siegeengines-tents-range
+    text: '{{tents_range}}'
+    tooltip: '{{tents_range_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: improved-siegeengines.tents.variation
+    name: improved-siegeengines-tents-variation
+    text: '{{tents_variation}}'
+    tooltip: '{{tents_variation_tooltip}}'
+    display: Number
+    contents:
+      type: integer
+      value: 10
+      min: 0
+      max: 30
+      step: 1
+
+- display: GroupBox
+  category: [Improved Siegeengines]
+  header: '{{towers_group}}'
+  text: '{{towers_group_descr}}'
+  hasHeader: true
+  children:
+  - url: improved-siegeengines.towers.dock
+    name: improved-siegeengines-towers-dock
+    text: '{{towers_dock}}'
+    tooltip: '{{towers_dock_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: improved-siegeengines.towers.orders
+    name: improved-siegeengines-towers-orders
+    text: '{{towers_orders}}'
+    tooltip: '{{towers_orders_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+
+- display: GroupBox
+  category: [Improved Siegeengines]
+  header: '{{shields_group}}'
+  text: '{{shields_group_descr}}'
+  hasHeader: true
+  children:
+  - url: improved-siegeengines.shields.enabled
+    name: improved-siegeengines-shields-enabled
+    text: '{{shields_enabled}}'
+    tooltip: '{{shields_enabled_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+
+- display: GroupBox
+  category: [Improved Siegeengines]
+  header: '{{diagnostics_group}}'
+  text: '{{diagnostics_group_descr}}'
+  hasHeader: true
+  children:
+  - url: improved-siegeengines.diagnostics.log
+    name: improved-siegeengines-diagnostics-log
+    text: '{{diagnostics_log}}'
+    tooltip: '{{diagnostics_log_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: false

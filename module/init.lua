@@ -1,0 +1,772 @@
+--[[
+  Improved Siegeengines
+
+  Four changes to how the AI uses siege engines, each switchable on its own:
+
+  1. Catapults and trebuchets pick their own targets. The game's own search only looks one
+     direction at a time and only at walls standing tall; when it finds nothing the engine
+     rolls on towards the castle until it stands in front of the wall. Now the engine first
+     looks all round, as far as it can throw, for the nearest enemy wall, tower, gatehouse or
+     building, and shoots that from where it stands.
+
+  2. Siege tents. Every tent spot the AI ever used stayed marked as used for the rest of the
+     game, so in a long game the tents went further and further out. A spot is free again
+     once its troop is gone, nothing stands on it and no enemy that could hit an engine there
+     is in reach. Tents for catapults, trebuchets and fire ballistas go where the engine can
+     reach the castle: 0 to `variation` tiles short of its range from the castle's walls and
+     towers, picked a bit differently for each tent.
+
+  3. Siege towers. A tower docks where the game would, else with its corner against a
+     diagonal wall, else at the same wall up to three tiles along. The AI no longer waits for
+     its own list of "good walls": an idle tower looks for the nearest enemy wall it can dock
+     at, and when there is none it walks with the army's patrol troops (or the main army) like
+     a big shield until there is.
+
+  4. Portable shields walk with the AI's own troops only: the moat fillers first, then the
+     ranged siege engines, then the backup troops - never the main army, never a deer. More
+     shields than places simply share.
+
+  Only the AI's siege engines are changed, except the docking in 3, which every tower uses.
+]]
+
+local templates = require("templates")
+
+local MODULE_NAME = "improved-siegeengines"
+
+local DEFAULTS = {
+  catapults = { enabled = true },
+  tents = { free = true, range = true, variation = 10 },
+  towers = { dock = true, orders = true },
+  shields = { enabled = true },
+  diagnostics = { log = false },
+}
+
+---------------------------------------------------------------------------------------
+-- What the game's code looks like where this module reads it
+---------------------------------------------------------------------------------------
+
+-- harassBuildingsWithSiegeAI(unit): an AI catapult, trebuchet or fire ballista choosing what
+-- to throw at. The same layout in both executables.
+local AOB_HARASS = "83 EC 10 53 55 56 57 8B 7C 24 24 8B C7 69 C0 90 04 00 00"
+local HARASS_HOOK = { 0x1BB, { 0xBB, 0x15, 0x00, 0x00, 0x00 } }   -- mov ebx, 0x15
+local HARASS_HOOK_SIZE = 5
+local HARASS_RESULT = { 0x1C0, { 0xC7, 0x05 } }                     -- mov [ALG_ResultTile2], 0
+local HARASS_TARGET_X = { 0x306, { 0x8B, 0x3D } }                   -- mov edi, [ALG_TargetX]
+local HARASS_TARGET_Y = { 0x30C, { 0x8B, 0x15 } }                   -- mov edx, [ALG_TargetY]
+local HARASS_SHOOT = 0x306                                          -- ... and on to the shot
+
+-- findBestAttackTargetTileWithHeightAndOwner: the building array and the "can be damaged" table.
+local AOB_CONE = "83 EC 24 83 C8 FF 55 56 8B F1 89 44 24 18"
+local CONE_TYPE = { 0x24E, { 0x0F, 0xBF, 0x8F } }                   -- movsx ecx, [edi + type]
+local CONE_HEALTH = { 0x255, { 0x83, 0x3C, 0x8D } }                 -- cmp [ecx*4 + table], 0
+local CONE_OWNER = { 0x263, { 0x0F, 0xBF, 0x97 } }                  -- movsx edx, [edi + owner]
+
+-- acquireShootTarget: the range of every projectile, in tiles.
+local AOB_ACQUIRE = "83 EC 40 53 56 57 8B 7C 24 50 69 FF 90 04 00 00 8B F1 0F BF 84 37 AA 06 00 00"
+local ACQUIRE_RANGE = { 0x131, { 0x8B, 0x04, 0x85 } }
+
+-- placeSiegeTentsAndAssignEngineers: the two ways a siege tent is placed.
+local AOB_TENTS = "83 EC 10 89 4C 24 08 8B 4C 24 14 0F BE 81 ? ? ? ?"
+local TENTS_ANGLE_CALL = 0x2DE              -- call placeSiegeTentAtAttackAngle
+local TENTS_SUIT_CALL = 0x2FA               -- call placeSiegeTentOrTunnelAtSuitableLocation
+local TENT_PROLOGUE = { 0x53, 0x8B, 0x5C, 0x24, 0x08 }   -- push ebx; mov ebx, [esp+8]
+local ANGLE_FIND_CALL = 0x37                -- call algFindAttackAngle
+local SPOT_HOOK = { 0x1A1, { 0x8B, 0xC8, 0xC1, 0xE1, 0x05, 0x83, 0xB9 } }
+local SPOT_HOOK_SIZE = 0x1B
+local SPOT_THREE = 0x1A8                    -- cmp [ecx + spots.three], 0
+local SPOT_TRIBE = { 0x1AF, { 0x83, 0xB9 } } -- cmp [ecx + spots.tribeID], 0
+local SPOT_FOUND = { 0x1B6, { 0x0F, 0x84 } } -- je <return the spot>
+
+-- findAppropriateLocationForSiegeTent: the test of the AI's distance layer.
+local AOB_LOCATION = "83 EC 0C 55 56 57 8B 7C 24 20"
+local LOCATION_HOOK = { 0x15F, { 0x83, 0x7C, 0x24, 0x30, 0x00, 0x8B, 0xC3, 0x74, 0x26 } }
+local LOCATION_HOOK_SIZE = 0x2F
+local LOCATION_ATTACKED = { 0x172, { 0x8B, 0x9B } }
+local LOCATION_LAYER = { 0x17E, { 0x0F, 0xB6, 0x9C, 0x33 } }
+
+-- useAITribe_0x12_toPlaceSiegeTentsAndAssignEngineers: siege engine unit types and the
+-- building type of each one's tent.
+local AOB_ENGINEERS = "83 EC 18 8B D1 8B 4C 24 1C 69 C9 F4 39 00 00"
+local ENGINEERS_UNIT_TYPES = { 0x110, { 0x3B, 0x0C, 0x85 } }
+local ENGINEERS_TENT_TYPES = { 0x12E, { 0x8B, 0x1C, 0x85 } }
+
+-- aiCommandSiegeEngineTribes(player): towers, rams and shields, once per AI round.
+local AOB_COMMAND = "83 EC 14 53 55 56 8B 74 24 24 8B C6"
+local CMD_TRIBE_IDS = { 0x18, { 0x0F, 0xBF, 0x81 } }
+local CMD_STRIDE = { 0x36, { 0x69, 0xDB } }
+local CMD_UNITS = { 0xB6, { 0xBB } }                 -- mov ebx, units[1].type
+local CMD_TOWER = { 0x105, { 0x0F, 0xBF, 0x83, 0x4A, 0x02, 0x00, 0x00 } }
+local CMD_WIDE = { 0x11C, { 0x83, 0xBA } }           -- the AI's walls for towers and rams
+local CMD_TRIBES = { 0x12F, { 0xB9 } }
+local CMD_ASSIGN = { 0x134, { 0xE8 } }               -- call assignAttackTargetsForTribe
+local CMD_SHIELD = { 0x19F, { 0x0F, 0x85 } }         -- jne <next unit>
+local CMD_FOLLOW = { 0x1C9, { 0x66, 0x89, 0x86 } }
+local CMD_FOLLOW_UID = { 0x1DC, { 0x89, 0x96 } }
+local CMD_LEADER = { 0x1E2, { 0x0F, 0xBF, 0xB8 } }
+local CMD_BACKLINK = { 0x1EF, { 0x66, 0x89, 0x88 } }
+local CMD_MOVE = { 0x22A, { 0xE8 } }                 -- call giveTribeMoveInstruction
+local CMD_NEXT = 0x265                               -- add ebx, 0x490: the next unit
+local CMD_LAST = { 0x26B, { 0x81, 0xFB } }           -- cmp ebx, units[last].type
+local CMD_EPILOGUE = { 0x27B, { 0x5F, 0x5E, 0x5D, 0x5B, 0x83, 0xC4, 0x14, 0xC2, 0x04, 0x00 } }
+local CMD_EPILOGUE_SIZE = 7
+
+-- UnitsState::findFreeTileNearby(unit, wallTile): where a siege tower stands to dock. Found
+-- past its first nine bytes, which are the ones a module hooking it rewrites.
+local AOB_FREE_TILE = "56 69 ED 90 04 00 00 8B 85 ? ? ? ? 0F BF 1C 45"
+local FREE_TILE_START = -9
+local FREE_TILE_PROLOGUE = { 0x83, 0xEC, 0x10, 0x53, 0x55, 0x8B, 0x6C, 0x24, 0x1C }
+local FREE_TILE_SIZE = 9
+local FREE_TILE_PF = { 0x5A, { 0xB9 } }
+local FREE_TILE_NAVIGATE = { 0x67, { 0xE8 } }
+
+local AOB_SET_DESTINATION = "83 EC 08 8B 44 24 0C 8B D0 69 D2 90 04 00 00"
+local AOB_TEAMS = "8B 0C 85 ? ? ? ? 8B 44 24 30 3B 0C 85 ? ? ? ?"
+local TEAMS_OPERAND = 0x03
+local AOB_TICKS = "8B 87 50 0A 00 00 8B 8F 98 09 00 00 8B 15"
+local TICKS_OPERAND = 0x0E
+local AOB_TILE_FLAGS = "F7 04 9D ? ? ? ? 00 01 00 00"
+local TILE_FLAGS_OPERAND = 0x03
+
+---------------------------------------------------------------------------------------
+-- Layouts (the same in both executables unless read from code above)
+---------------------------------------------------------------------------------------
+
+local U = { STRIDE = 0x490, STATE = 0x8C, TYPE = 0x8E, OWNER = 0x96, UID = 0x98, X = 0xC4, Y = 0xC6,
+  TILE = 0xD4, DYING = 0x2A0, ORDER_STATE = 0x2C0, TRIBE = 0x2D8, TARGET = 0x336,
+  TARGETING = 0x39C, WALL_TILE = 0x3A8, DOCK_TILE = 0x3B8, SIEGE_BYTE = 0x3FE, WALL_X = 0x3E8,
+  WALL_Y = 0x3EA, BEHAVIOUR = 0x42A, STATE_OFFSET = 0x614 }
+local P = { STRIDE = 0x39F4, ATTACKED = 0x2BD8, TRIBE_IDS = 0x310C, TRIBE_UIDS = 0x329C }
+local T = { OWNER = 0x2C, UID = 0x34, STATE = 0x40, LEADER = 0x5A }
+local MAP = { FLAGS = 0x165160, WALL_OWNER = 0x2C6E50, AREA = 0x363ED0, Y_OF_TILE = 0x742B90,
+  ROWS = 0x8A40F8, VALID = 0x71BA90, BUILDINGS = 0x2029B0, UNITS = 0x23D7E0 }
+local B = { STRIDE = 0x32C, TYPE = 0xD2, OWNER = 0xD6 }
+
+local TILES = 0x13A10
+local MAX_TRIBES = 1251          -- 1250 troops, in both executables
+local MAX_THREATS = 4000
+local MELEE_REACH = 10
+local TOWER_RADIUS = 50
+local TOWER_TESTS = 24
+local WIDE_STRIDE = 0x177BC
+
+local UT = { SHIELD = 60, TOWER = 58, CATAPULT = 39, TREBUCHET = 40, MANGONEL = 41, FIRE_BALLISTA = 77 }
+local RANGED_ENGINES = { [39] = true, [40] = true, [41] = true, [77] = true }
+
+-- Troop slots in the AI's attack troop list (aiTribeIDs).
+local SLOT_DIGGERS = { 0x11 }
+local SLOT_BACKUP = { 0xBA, 0xBB, 0xBC }
+local SLOT_PATROL = { 0x0F, 0x10 }
+local SLOT_MAIN = { 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7 }
+
+-- Who could hit a siege engine: a projectile id (its reach is the game's range table) or melee.
+local MELEE = 0xFF00
+local THREAT_KIND = {
+  [22] = 1, [23] = 7, [70] = 1, [72] = 0x21, [74] = 1, [76] = 0x22,       -- ranged troops
+  [24] = MELEE, [25] = MELEE, [26] = MELEE, [27] = MELEE, [28] = MELEE, [37] = MELEE,
+  [55] = MELEE, [71] = MELEE, [73] = MELEE, [75] = MELEE,
+}
+
+-- The castle a ranged engine's tent is measured from: walls plus these fortified buildings
+-- (towers, gatehouses, the keep's fortifications).
+local FORTIFICATIONS = { 45, 46, 47, 48, 49, 60, 61, 71, 72, 73, 74, 75, 76, 77, 78 }
+
+local ORDER_WALL, STATE_TO_WALL, STATE_DOCKING = 0x17, 0x65, 8
+local KIND_TOWER_WALLS = 0x414
+
+---------------------------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------------------------
+
+local rd32, wr32 = core.readInteger, core.writeInteger
+
+local function u16(address) return core.readSmallInteger(address) & 0xFFFF end
+local function s16(address)
+  local value = u16(address)
+  if value >= 0x8000 then value = value - 0x10000 end
+  return value
+end
+local function wr16(address, value) core.writeSmallInteger(address, value & 0xFFFF) end
+local function byte(address) return core.readByte(address) & 0xFF end
+
+local function scan(pattern, purpose)
+  local ok, address = pcall(core.AOBScan, pattern)
+  if not ok or address == nil then
+    error(string.format("could not find %s", purpose), 0)
+  end
+  return address
+end
+
+local function expectBytes(address, bytes, purpose)
+  for index, value in ipairs(bytes) do
+    if byte(address + index - 1) ~= value then
+      error(string.format("%s at 0x%X is not the code this module knows", purpose, address), 0)
+    end
+  end
+end
+
+local function operand(base, site, purpose)
+  expectBytes(base + site[1], site[2], purpose)
+  return rd32(base + site[1] + #site[2])
+end
+
+local function callTarget(at, purpose)
+  expectBytes(at, { 0xE8 }, purpose)
+  return at + 5 + rd32(at + 1)
+end
+
+-- FASM gets a fixed 64 KB for source, symbols and output: strip the script, pass only what it
+-- uses. Local labels (".name") become plain ones; every script is assembled on its own.
+local function assemble(script, values)
+  local lines = {}
+  for line in script:gmatch("[^\n]+") do
+    line = line:gsub(";.*$", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if line ~= "" then lines[#lines + 1] = line end
+  end
+  local text = table.concat(lines, "\n"):gsub("%.(%a[%w_]*)", "L_%1") .. "\n"
+  local used = {}
+  for name, value in pairs(values) do
+    if text:find("%f[%w_]" .. name .. "%f[^%w_]") then
+      used[name] = value
+    end
+  end
+  return core.allocateAssembly(text, used)
+end
+
+local function jumpCode(address, target, size)
+  local code = { 0xE9, core.itob(core.getRelativeAddress(address, target, -5)) }
+  for _ = 6, size do code[#code + 1] = 0x90 end
+  return code
+end
+
+local function setting(config, group, name)
+  local section = type(config) == "table" and config[group] or nil
+  if type(section) == "table" and section[name] ~= nil then
+    if type(DEFAULTS[group][name]) == "boolean" then return section[name] == true end
+    return section[name]
+  end
+  return DEFAULTS[group][name]
+end
+
+local function number(config, group, name, low, high)
+  local value = tonumber(setting(config, group, name)) or DEFAULTS[group][name]
+  value = math.tointeger(math.floor(value)) or DEFAULTS[group][name]
+  return math.max(low, math.min(high, value))
+end
+
+-- A cdecl function with no arguments that runs `callback` in lua.
+local function luaFunction(purpose, callback)
+  local pad = core.allocateCode({ 0x90, 0x90, 0x90, 0x90, 0x90, 0xC3 })
+  local reported = false
+  core.detourCode(function(registers)
+    local ok, message = pcall(callback)
+    if not ok and not reported then
+      reported = true
+      log(WARNING, string.format("%s: %s failed: %s", MODULE_NAME, purpose, tostring(message)))
+    end
+    return registers
+  end, pad, 5)
+  return pad
+end
+
+---------------------------------------------------------------------------------------
+-- The module's state
+---------------------------------------------------------------------------------------
+
+local G = {}           -- addresses
+local F = {}           -- game functions callable from lua
+local O = {}           -- options
+local patched = {}     -- { address, original bytes }, in the order written
+
+local function patch(address, code, size)
+  patched[#patched + 1] = { address = address, bytes = core.readBytes(address, size) }
+  core.writeCode(address, code)
+end
+
+local function diag(format, ...)
+  if O.log then log(INFO, MODULE_NAME .. ": " .. string.format(format, ...)) end
+end
+
+---------------------------------------------------------------------------------------
+-- Troops, units and tribes
+---------------------------------------------------------------------------------------
+
+local function unitAt(index) return G.units + index * U.STRIDE end
+
+local function unitAlive(index)
+  if index <= 0 or index >= G.maxUnits then return false end
+  local a = unitAt(index)
+  return u16(a + U.STATE) == 2 and u16(a + U.DYING) == 0
+end
+
+local function tribeAt(tribe) return G.tribes + tribe * G.tribeStride end
+
+local function tribeAlive(tribe)
+  return tribe > 0 and tribe < MAX_TRIBES and u16(tribeAt(tribe) + T.STATE) == 2
+end
+
+local function friendly(owner, player)
+  if owner == player then return true end
+  if owner < 1 or owner > 8 then return false end
+  return rd32(G.teams + 4 * owner) == rd32(G.teams + 4 * player)
+end
+
+-- The troop the AI keeps in `slot`, if it is still that troop and alive.
+local function slotTribe(player, slot)
+  local base = G.players + player * P.STRIDE
+  local tribe = s16(base + P.TRIBE_IDS + 2 * slot)
+  if tribe <= 0 or not tribeAlive(tribe) then return nil end
+  if rd32(base + P.TRIBE_UIDS + 4 * slot) ~= rd32(tribeAt(tribe) + T.UID) then return nil end
+  return tribe
+end
+
+-- A troop's leader, if it is alive, on the player's side and really in that troop.
+local function leaderOf(tribe, player)
+  local leader = s16(tribeAt(tribe) + G.leaderOffset)
+  if not unitAlive(leader) then return nil end
+  local a = unitAt(leader)
+  if not friendly(s16(a + U.OWNER), player) then return nil end
+  if s16(a + U.TRIBE) ~= tribe then return nil end
+  return leader
+end
+
+local function troopsIn(player, slots, into)
+  for _, slot in ipairs(slots) do
+    local tribe = slotTribe(player, slot)
+    local leader = tribe and leaderOf(tribe, player)
+    if leader then
+      into[#into + 1] = { tribe = tribe, unit = leader, uid = rd32(tribeAt(tribe) + T.UID) }
+    end
+  end
+  return into
+end
+
+local function moveTribe(tribe, unit)
+  local a = unitAt(unit)
+  F.move(G.tribes, tribe, s16(a + U.X), s16(a + U.Y), 0, 0, 0)
+end
+
+-- The player's shields, towers and ranged engines (collected in asm), as the game's own loop
+-- picks shields and towers: from a siege tent (byte 3), not the siege camp's own (behaviour
+-- 0x15) and in a troop.
+local function siegeUnits()
+  local found = { shields = {}, towers = {}, engines = {} }
+  for i = 1, math.min(rd32(G.list), 255) do
+    local index = rd32(G.list + 4 * i)
+    local a = unitAt(index)
+    local kind = u16(a + U.TYPE)
+    if RANGED_ENGINES[kind] then
+      if unitAlive(index) then found.engines[#found.engines + 1] = index end
+    elseif byte(a + U.SIEGE_BYTE) == 3 and u16(a + U.BEHAVIOUR) ~= 0x15 and s16(a + U.TRIBE) > 0 then
+      local list = kind == UT.SHIELD and found.shields or found.towers
+      list[#list + 1] = index
+    end
+  end
+  return found
+end
+
+---------------------------------------------------------------------------------------
+-- 4. Shields
+---------------------------------------------------------------------------------------
+
+local shieldTargets = {}    -- shield tribe -> the engine it walks with (lua only)
+
+local function commandShields(player, units)
+  if #units.shields == 0 then return end
+  -- Where a shield may go, best first: the moat fillers, the ranged siege engines, the backup
+  -- troops. The main army never gets one.
+  local places = troopsIn(player, SLOT_DIGGERS, {})
+  for _, engine in ipairs(units.engines) do
+    local tribe = s16(unitAt(engine) + U.TRIBE)
+    places[#places + 1] = { tribe = (tribe > 0 and tribeAlive(tribe)) and tribe or 0,
+      unit = engine, uid = rd32(unitAt(engine) + U.UID), engine = true }
+  end
+  troopsIn(player, SLOT_BACKUP, places)
+  if #places == 0 then return end
+
+  local seen, shields = {}, {}
+  for _, unit in ipairs(units.shields) do
+    local tribe = s16(unitAt(unit) + U.TRIBE)
+    if not seen[tribe] then
+      seen[tribe] = true
+      shields[#shields + 1] = tribe
+    end
+  end
+
+  -- Keep each shield where it already is if that place is still on the list.
+  local counts, assigned = {}, {}
+  for _, shield in ipairs(shields) do
+    local base = tribeAt(shield)
+    local link, linkUid = s16(base + G.followOffset), rd32(base + G.followUidOffset)
+    local remembered = shieldTargets[shield]
+    for i, place in ipairs(places) do
+      local same
+      if place.engine then
+        same = remembered ~= nil and remembered.unit == place.unit and remembered.uid == place.uid
+      else
+        same = link == place.tribe and linkUid == place.uid
+      end
+      if same then
+        assigned[shield] = i
+        counts[i] = (counts[i] or 0) + 1
+        break
+      end
+    end
+  end
+  -- The others go to the place with the fewest shields, the better one on a tie.
+  for _, shield in ipairs(shields) do
+    if assigned[shield] == nil then
+      local best
+      for i = 1, #places do
+        if best == nil or (counts[i] or 0) < (counts[best] or 0) then best = i end
+      end
+      assigned[shield] = best
+      counts[best] = (counts[best] or 0) + 1
+      diag("player %d: shield troop %d now walks with %s %d", player, shield,
+        places[best].engine and "siege engine" or "troop",
+        places[best].engine and places[best].unit or places[best].tribe)
+    end
+    local place = places[assigned[shield]]
+    local base = tribeAt(shield)
+    moveTribe(shield, place.unit)
+    if place.tribe > 0 then
+      wr16(base + G.followOffset, place.tribe)
+      wr32(base + G.followUidOffset, rd32(tribeAt(place.tribe) + T.UID))
+      wr16(tribeAt(place.tribe) + G.backlinkOffset, shield)
+    else
+      wr16(base + G.followOffset, 0)
+    end
+    shieldTargets[shield] = place.engine and { unit = place.unit, uid = place.uid } or nil
+  end
+end
+
+---------------------------------------------------------------------------------------
+-- 3. Siege towers
+---------------------------------------------------------------------------------------
+
+local function tileXY(tile)
+  local y = u16(G.tileY + 2 * tile)
+  return tile - rd32(G.rows + 12 * y), y
+end
+
+-- Send the tower at a wall the way its own update does when it finds one.
+local function sendToWall(unit, wall, dock)
+  local a = unitAt(unit)
+  local dx, dy = tileXY(dock)
+  local wx, wy = tileXY(wall)
+  F.setDestination(G.unitsState, unit, dx, dy, 0)
+  wr16(a + U.TARGETING, ORDER_WALL)
+  wr16(a + U.ORDER_STATE, STATE_TO_WALL)
+  wr16(a + U.TARGET, wall)
+  wr32(a + U.WALL_TILE, wall)
+  wr32(a + U.DOCK_TILE, dock)
+  wr16(a + U.WALL_X, wx)
+  wr16(a + U.WALL_Y, wy)
+end
+
+local towerMode = {}     -- tower unit -> "wall" / "list" / "follow", for the log
+
+local function commandTowers(player, units)
+  if #units.towers == 0 then return end
+  local attacked = rd32(G.players + player * P.STRIDE + P.ATTACKED)
+  local wide = rd32(G.wide + player * WIDE_STRIDE)
+  local escorts
+  local followers = 0
+  for _, tower in ipairs(units.towers) do
+    local a = unitAt(tower)
+    -- (a docked tower has left its troop and is not in the list at all)
+    local busy = u16(a + U.TARGETING) == ORDER_WALL
+      and (u16(a + U.ORDER_STATE) == STATE_TO_WALL or u16(a + U.ORDER_STATE) == STATE_DOCKING)
+    if not busy and unitAlive(tower) then
+      local tribe = s16(a + U.TRIBE)
+      local wall = F.towerFind(tower, (attacked >= 1 and attacked <= 8) and attacked or 0, TOWER_RADIUS)
+      local mode
+      if wall ~= 0 then
+        sendToWall(tower, wall, rd32(G.data + 0xFC))
+        mode = "wall"
+      elseif wide ~= 0 then
+        F.assign(G.tribes, tribe, KIND_TOWER_WALLS)
+        mode = "list"
+      else
+        escorts = escorts or troopsIn(player, SLOT_MAIN, troopsIn(player, SLOT_PATROL, {}))
+        if #escorts > 0 then
+          followers = followers + 1
+          moveTribe(tribe, escorts[(followers - 1) % #escorts + 1].unit)
+          mode = "follow"
+        end
+      end
+      if mode ~= nil and towerMode[tower] ~= mode then
+        diag("player %d: siege tower %d %s", player, tower, mode == "wall" and
+          string.format("goes to dock at wall tile %d", wall) or mode == "list" and
+          "takes a wall from the AI's own list" or "walks with the army, no wall to dock at in reach")
+      end
+      towerMode[tower] = mode
+    end
+  end
+end
+
+local function onSiegeCommand()
+  local player = rd32(G.data + 0x130)
+  if player < 1 or player > 8 then return end
+  local units = siegeUnits()
+  if O.shields then commandShields(player, units) end
+  if O.towerOrders then commandTowers(player, units) end
+end
+
+---------------------------------------------------------------------------------------
+-- Enable
+---------------------------------------------------------------------------------------
+
+local function readCommon()
+  local flags = rd32(scan(AOB_TILE_FLAGS, "the tile flags") + TILE_FLAGS_OPERAND)
+  local tms = flags - MAP.FLAGS
+  G.flags = flags
+  G.wallOwner = tms + MAP.WALL_OWNER
+  G.area = tms + MAP.AREA
+  G.tileY = tms + MAP.Y_OF_TILE
+  G.rows = tms + MAP.ROWS
+  G.valid = tms + MAP.VALID
+  G.buildingIds = tms + MAP.BUILDINGS
+  G.unitIds = tms + MAP.UNITS
+  G.teams = rd32(scan(AOB_TEAMS, "the team table") + TEAMS_OPERAND)
+  G.ticks = rd32(scan(AOB_TICKS, "the tick counter") + TICKS_OPERAND)
+
+  local cone = scan(AOB_CONE, "the siege engines' target search")
+  G.buildingType = operand(cone, CONE_TYPE, "the building types")
+  G.buildingOwner = operand(cone, CONE_OWNER, "the building owners")
+  G.health = operand(cone, CONE_HEALTH, "the damageable buildings")
+  if G.buildingOwner - G.buildingType ~= B.OWNER - B.TYPE then
+    error("the building layout is not the one this module knows", 0)
+  end
+  G.range = operand(scan(AOB_ACQUIRE, "the shooting code"), ACQUIRE_RANGE, "the range table")
+
+  local command = scan(AOB_COMMAND, "the AI's siege engine orders")
+  G.command = command
+  G.players = operand(command, CMD_TRIBE_IDS, "the AI's troop list") - P.TRIBE_IDS
+  G.tribeStride = operand(command, CMD_STRIDE, "the troop size")
+  G.tribes = operand(command, CMD_TRIBES, "the troops")
+  local first = operand(command, CMD_UNITS, "the unit array")
+  G.units = first - U.STRIDE - U.TYPE
+  G.maxUnits = (operand(command, CMD_LAST, "the unit array") - first) // U.STRIDE + 1
+  G.unitsState = G.units - U.STATE_OFFSET
+  G.leaderOffset = operand(command, CMD_LEADER, "the troop leader") - G.tribes
+  G.followOffset = operand(command, CMD_FOLLOW, "the shield link") - G.tribes
+  G.followUidOffset = operand(command, CMD_FOLLOW_UID, "the shield link") - G.tribes
+  G.backlinkOffset = operand(command, CMD_BACKLINK, "the shield link") - G.tribes
+  G.wide = operand(command, CMD_WIDE, "the AI's tower walls")
+  if G.leaderOffset ~= T.LEADER then
+    error("the troop layout is not the one this module knows", 0)
+  end
+
+  G.data = core.allocate(0x200, true)
+  wr32(G.data + 0x78, 0x7FFFFFFF)
+  wr32(G.data + 0x7C, 0x7FFFFFFF)
+
+  local helpers = { VALID = G.valid, ROWS = G.rows, FLAGS = G.flags, BIDS = G.buildingIds,
+    BTYPE = G.buildingType }
+  G.tileAt = assemble(templates.tileAt, helpers)
+  helpers.TILEAT = G.tileAt
+  G.wallAt = assemble(templates.wallAt, helpers)
+  G.clearAt = assemble(templates.clearAt, helpers)
+end
+
+-- The values every script may use; assemble() passes each script only its own.
+local function values(extra)
+  local v = {
+    D = G.data, FLAGS = G.flags, WOWNER = G.wallOwner, TILEY = G.tileY, ROWS = G.rows,
+    VALID = G.valid, BIDS = G.buildingIds, UNITMAP = G.unitIds, AREA = G.area,
+    BTYPE = G.buildingType, BOWNER = G.buildingOwner, HEALTH = G.health, TEAMS = G.teams,
+    RANGE = G.range, TICKS = G.ticks, UNITS = G.units, US = G.unitsState, TRIBES = G.tribes,
+    TSTRIDE = G.tribeStride, PLAYERS = G.players, MAXUNITS = G.maxUnits,
+    MAXTRIBES = MAX_TRIBES, TILES = TILES, TILEAT = G.tileAt, WALLAT = G.wallAt,
+    CLEARAT = G.clearAt,
+  }
+  for name, value in pairs(extra or {}) do v[name] = value end
+  return v
+end
+
+local function enableCatapults()
+  local harass = scan(AOB_HARASS, "the siege engines' target choice")
+  expectBytes(harass + HARASS_HOOK[1], HARASS_HOOK[2], "the siege engines' target choice")
+  local search = assemble(templates.catapultSearch, values())
+  local hook = assemble(templates.catapultHook, values({
+    SEARCH = search,
+    ALG_TILE = operand(harass, HARASS_RESULT, "the search result"),
+    ALG_X = operand(harass, HARASS_TARGET_X, "the search result"),
+    ALG_Y = operand(harass, HARASS_TARGET_Y, "the search result"),
+    SHOOT = harass + HARASS_SHOOT,
+    RESUME = harass + HARASS_HOOK[1] + HARASS_HOOK_SIZE,
+  }))
+  patch(harass + HARASS_HOOK[1], jumpCode(harass + HARASS_HOOK[1], hook, HARASS_HOOK_SIZE),
+    HARASS_HOOK_SIZE)
+end
+
+local function enableTents()
+  local tents = scan(AOB_TENTS, "the AI's siege tent placement")
+  local angle = callTarget(tents + TENTS_ANGLE_CALL, "the siege tent placement")
+  local suitable = callTarget(tents + TENTS_SUIT_CALL, "the siege tent placement")
+  expectBytes(angle, TENT_PROLOGUE, "the siege tent placement")
+  expectBytes(suitable, TENT_PROLOGUE, "the siege tent placement")
+  local find = callTarget(angle + ANGLE_FIND_CALL, "the tent spot search")
+  expectBytes(find + SPOT_HOOK[1], SPOT_HOOK[2], "the tent spot search")
+  local three = rd32(find + SPOT_THREE)
+  local tribeId = operand(find, SPOT_TRIBE, "the tent spots")
+  if three - tribeId ~= 8 then error("the tent spots are not laid out as this module knows", 0) end
+  expectBytes(find + SPOT_FOUND[1], SPOT_FOUND[2], "the tent spot search")
+  local found = find + SPOT_FOUND[1] + 6 + rd32(find + SPOT_FOUND[1] + 2)
+  local location = scan(AOB_LOCATION, "the siege tent location search")
+  expectBytes(location + LOCATION_HOOK[1], LOCATION_HOOK[2], "the siege tent location search")
+  local engineers = scan(AOB_ENGINEERS, "the siege engine types")
+
+  -- tables lua fills once: threat kinds by unit type, fortified building types
+  local tk = core.allocate(4 * 80, true)
+  for kind, value in pairs(THREAT_KIND) do wr32(tk + 4 * kind, value) end
+  local fort = core.allocate(512, true)
+  for _, kind in ipairs(FORTIFICATIONS) do core.writeByte(fort + kind, 1) end
+  local dist = core.allocate(400 * 400 * 2, true)
+  local threats = core.allocate(12 * MAX_THREATS, true)
+
+  local v = values({ TK = tk, FORT = fort, DIST = dist, THREATS = threats,
+    MELEE = MELEE_REACH, MAXTHREATS = MAX_THREATS,
+    ENG_UT = operand(engineers, ENGINEERS_UNIT_TYPES, "the siege engine types"),
+    ENG_BT = operand(engineers, ENGINEERS_TENT_TYPES, "the siege tent types"),
+    THREE = three, TID = tribeId, FOUND = found, CONTINUE = find + SPOT_HOOK[1] + SPOT_HOOK_SIZE,
+    ATTACKED_PID = operand(location, LOCATION_ATTACKED, "the AI's distance layer"),
+    LAYER = operand(location, LOCATION_LAYER, "the AI's distance layer"),
+    RESUME = location + LOCATION_HOOK[1] + LOCATION_HOOK_SIZE })
+  v.THREATLIST = assemble(templates.threats, v)
+  v.DISTMAP = assemble(templates.distanceMap, v)
+  v.PREPARE = assemble(templates.prepareTent, v)
+  v.FOOTPRINT = assemble(templates.footprint, v)
+  v.SAFE = assemble(templates.safe, v)
+
+  local spot = assemble(templates.tentSpot, v)
+  local inLocation = assemble(templates.tentLocation, v)
+  local function wrapper(at, args)
+    local orig = assemble(templates.tentOrig, { RESUME = at + #TENT_PROLOGUE })
+    return assemble(templates.tentWrapper, values({ PREPARE = v.PREPARE, ORIG = orig, ARGS = args }))
+  end
+  local angleWrapper = wrapper(angle, 2)
+  local suitableWrapper = wrapper(suitable, 4)
+
+  patch(find + SPOT_HOOK[1], jumpCode(find + SPOT_HOOK[1], spot, SPOT_HOOK_SIZE), SPOT_HOOK_SIZE)
+  patch(location + LOCATION_HOOK[1],
+    jumpCode(location + LOCATION_HOOK[1], inLocation, LOCATION_HOOK_SIZE), LOCATION_HOOK_SIZE)
+  patch(angle, jumpCode(angle, angleWrapper, 5), 5)
+  patch(suitable, jumpCode(suitable, suitableWrapper, 5), 5)
+end
+
+local function freeTileSearch()
+  return scan(AOB_FREE_TILE, "where a siege tower docks") + FREE_TILE_START
+end
+
+local function enableDocking()
+  local search = freeTileSearch()
+  local ok = pcall(expectBytes, search, FREE_TILE_PROLOGUE, "where a siege tower docks")
+  if not ok then
+    error("another module already changes where siege towers dock (Smarter Walls before "
+      .. "1.0.16 did; update it)", 0)
+  end
+  local pf = operand(search, FREE_TILE_PF, "the path finder")
+  local navigate = callTarget(search + FREE_TILE_NAVIGATE[1], "the area test")
+  local diagonals = core.allocate(32, true)
+  for i, d in ipairs({ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } }) do
+    wr32(diagonals + 8 * (i - 1), d[1])
+    wr32(diagonals + 8 * (i - 1) + 4, d[2])
+  end
+  local game = assemble(templates.freeTileGame, { RESUME = search + FREE_TILE_SIZE })
+  local diagonal = assemble(templates.diagonalDock, values({ DIAGS = diagonals, PF = pf, NAV = navigate }))
+  local free = assemble(templates.freeTile, values({ GAME = game, DIAGONAL = diagonal }))
+  patch(search, jumpCode(search, free, FREE_TILE_SIZE), FREE_TILE_SIZE)
+  G.freeTile = free
+end
+
+local function try(purpose, fn)
+  local ok, message = pcall(fn)
+  if not ok then
+    log(WARNING, string.format("%s: %s is off: %s", MODULE_NAME, purpose, tostring(message)))
+  end
+  return ok
+end
+
+local function enableCommands()
+  local command = G.command
+  F.move = core.exposeCode(callTarget(command + CMD_MOVE[1], "the troop move order"), 7, 1)
+  F.assign = core.exposeCode(callTarget(command + CMD_ASSIGN[1], "the troop target order"), 3, 1)
+  F.setDestination = core.exposeCode(scan(AOB_SET_DESTINATION, "setDestinationForUnit"), 5, 1)
+  expectBytes(command + CMD_EPILOGUE[1], CMD_EPILOGUE[2], "the end of the AI's siege orders")
+  expectBytes(command + CMD_TOWER[1], CMD_TOWER[2], "the AI's siege tower orders")
+  expectBytes(command + CMD_SHIELD[1], CMD_SHIELD[2], "the AI's shield orders")
+  G.list = core.allocate(4 * 256, true)
+  local collect = assemble(templates.collect, values({ LIST = G.list }))
+  local lua = luaFunction("the shield and siege tower orders", onSiegeCommand)
+  local tail = assemble(templates.commandEnd, { D = G.data, LUA = lua, COLLECT = collect })
+
+  if O.towerOrders then
+    O.towerOrders = try("siege tower orders", function()
+      -- the tower's free-spot search: the module's own when docking is on
+      local free = G.freeTile or freeTileSearch()
+      local find = assemble(templates.towerFind, values({ FREETILE = free, MAXTESTS = TOWER_TESTS }))
+      F.towerFind = core.exposeCode(find, 3, 0)
+    end)
+    if O.towerOrders then
+      -- the game's own tower branch goes straight on to the next unit
+      patch(command + CMD_TOWER[1], jumpCode(command + CMD_TOWER[1], command + CMD_NEXT, 7), 7)
+    end
+  end
+  if O.shields then
+    patch(command + CMD_SHIELD[1], jumpCode(command + CMD_SHIELD[1], command + CMD_NEXT, 6), 6)
+  end
+  patch(command + CMD_EPILOGUE[1], jumpCode(command + CMD_EPILOGUE[1], tail, CMD_EPILOGUE_SIZE),
+    CMD_EPILOGUE_SIZE)
+end
+
+return {
+
+  enable = function(self, config)
+    O.catapults = setting(config, "catapults", "enabled")
+    O.freeSpots = setting(config, "tents", "free")
+    O.tentRange = setting(config, "tents", "range")
+    O.variation = number(config, "tents", "variation", 0, 30)
+    O.dock = setting(config, "towers", "dock")
+    O.towerOrders = setting(config, "towers", "orders")
+    O.shields = setting(config, "shields", "enabled")
+    O.log = setting(config, "diagnostics", "log")
+    if not (O.catapults or O.freeSpots or O.tentRange or O.dock or O.towerOrders or O.shields) then
+      return
+    end
+    if not try("the whole module", readCommon) then return end
+
+    local state = {}
+    state.catapults = O.catapults and try("catapults and trebuchets choosing targets", enableCatapults)
+    state.tents = (O.freeSpots or O.tentRange) and try("siege tent placement", enableTents)
+    state.dock = O.dock and try("siege tower docking", enableDocking)
+    state.commands = (O.towerOrders or O.shields) and try("shield and siege tower orders", enableCommands)
+
+    wr32(G.data + 0x00, state.catapults and 1 or 0)
+    wr32(G.data + 0x04, (state.tents and O.freeSpots) and 1 or 0)
+    wr32(G.data + 0x08, (state.tents and O.tentRange) and 1 or 0)
+    wr32(G.data + 0x0C, O.variation)
+    wr32(G.data + 0x10, state.dock and 1 or 0)
+    if not state.commands then O.shields, O.towerOrders = false, false end
+    state.towers = state.commands and O.towerOrders
+
+    local function word(on, ready) return not on and "off" or ready and "on" or "unavailable" end
+    log(INFO, string.format("%s: catapults %s, tent spots %s, tents by range %s (up to %d tiles "
+      .. "short), tower docking %s, tower orders %s, shields %s", MODULE_NAME,
+      word(O.catapults, state.catapults), word(O.freeSpots, state.tents),
+      word(O.tentRange, state.tents), O.variation, word(O.dock, state.dock),
+      word(setting(config, "towers", "orders"), state.towers), word(O.shields, state.commands)))
+  end,
+
+  disable = function(self, config)
+    if G.data ~= nil then
+      for offset = 0x00, 0x10, 4 do wr32(G.data + offset, 0) end
+    end
+    O.shields, O.towerOrders = false, false
+    for index = #patched, 1, -1 do
+      core.writeCodeBytes(patched[index].address, patched[index].bytes)
+    end
+    patched = {}
+  end,
+
+}
