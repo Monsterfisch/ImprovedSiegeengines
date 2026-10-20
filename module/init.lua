@@ -185,6 +185,11 @@ local SLOT_BACKUP = { 0xBA, 0xBB, 0xBC }
 local SLOT_PATROL = { 0x0F, 0x10 }
 local SLOT_SIEGEDEF = { 0xBE, 0xBF }
 local SLOT_MAIN = { 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7 }
+-- Every attack troop slot, for the last resort: a ranged troop of the attacking army.
+local SLOT_ATTACK = { 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xBE, 0xBF, 0x0C, 0xBD,
+  0x0F, 0x10, 0xBA, 0xBB, 0xBC }
+-- Archers, crossbowmen, Arab archers, slingers, horse archers, fire throwers.
+local RANGED_TROOPS = { [22] = true, [23] = true, [70] = true, [72] = true, [74] = true, [76] = true }
 
 -- Who could hit a siege engine: a projectile id (its reach is the game's range table) or melee.
 local MELEE = 0xFF00
@@ -396,6 +401,20 @@ local function troopsIn(player, slots, into)
   return into
 end
 
+-- The attacking army's ranged troops (by their leader), in an order that looks random but is the
+-- same on every machine of a multiplayer game: shuffled by troop uid.
+local function rangedTroops(player)
+  local all, ranged = troopsIn(player, SLOT_ATTACK, {}), {}
+  for _, troop in ipairs(all) do
+    if RANGED_TROOPS[u16(unitAt(troop.unit) + U.TYPE)] then
+      troop.key = (troop.uid * 2654435761) & 0xFFFFFFFF
+      ranged[#ranged + 1] = troop
+    end
+  end
+  table.sort(ranged, function(p, q) return p.key < q.key end)
+  return ranged
+end
+
 local function moveTribe(tribe, unit)
   local a = unitAt(unit)
   F.move(G.tribes, tribe, s16(a + U.X), s16(a + U.Y), 0, 0, 0)
@@ -450,6 +469,8 @@ local function commandShields(player, units)
   end
 
   -- Nowhere to go: a shield that was walking with someone stops where it is and waits.
+  -- Nobody of those there: walk with one of the army's ranged troops instead.
+  if #places == 0 then places = rangedTroops(player) end
   if #places == 0 then
     for _, shield in ipairs(shields) do
       local base = tribeAt(shield)
@@ -566,6 +587,8 @@ local function commandTowers(player, units)
           for _, slots in ipairs({ SLOT_PATROL, SLOT_SIEGEDEF, SLOT_MAIN, SLOT_BACKUP }) do
             troopsIn(player, slots, escorts)
           end
+          -- none of those: one of the army's ranged troops
+          if #escorts == 0 then escorts = rangedTroops(player) end
         end
         if #escorts > 0 then
           followers = followers + 1

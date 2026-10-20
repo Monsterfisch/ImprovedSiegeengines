@@ -1,6 +1,6 @@
 # Improved Siegeengines
 
-Version 1.0.4
+Version 1.0.5
 
 The AI's siege engines in the unmodified game waste themselves: catapults roll up to the wall
 they could have hit from far away, siege tents creep further out the longer a game goes until
@@ -37,11 +37,13 @@ corner against a diagonal wall, or at the same wall up to three tiles along.
 
 **AI siege towers find their own wall.** An idle AI tower goes to the nearest enemy wall it can
 dock at. When there is none, it walks with the army like a big shield until there is - with
-the patrol troops, else the siege defence, else the main army, else the backup troops.
+the patrol troops, else the siege defence, else the main army, else the backup troops, else a
+randomly picked ranged troop of the attacking army.
 
 **Shields walk with their own troops.** AI shields go to the moat fillers first, then the ranged
 siege engines, then the backup troops - never the main army, never anyone not on their side.
-The shields are spread evenly over whoever is there; with nobody to walk with they stop and
+The shields are spread evenly over whoever is there; when none of those are there they walk
+with randomly picked ranged troops of the attacking army, and with nobody at all they stop and
 wait where they are.
 
 ## Good to know
