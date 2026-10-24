@@ -63,8 +63,10 @@ towers_dock_tooltip: |
 towers_orders: AI siege towers find their own wall
 towers_orders_tooltip: |
   An AI siege tower that has nothing to do looks for the nearest enemy wall it can dock at
-  (within 50 tiles) and goes there. If there is none - a castle built so that no tower can
-  dock anywhere - it walks with the army like a big shield until a wall comes in reach: with
+  (within 100 tiles) and goes there; if there is none it may try a wall from the AI's own list.
+  If that gets it nowhere either - it is given no order, or stands still on the way - or a
+  castle is built so that no tower can dock anywhere, it walks with the army like a big shield
+  until a wall comes in reach: with
   the patrol troops if there are any, else the siege defence troops, else the main army, else
   a randomly picked ranged troop of the attacking army, and only when none of those are left
   the backup troops.

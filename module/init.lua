@@ -176,8 +176,8 @@ local CIVILIAN_PENALTY = 0x1000000
 -- A ranged engine's tent stands this many tiles inside its reach: the tent's own 3x3 and the
 -- tile or two the engine rolls out beside it, so even the far end of the band is in range.
 local TENT_MARGIN = 6
-local TOWER_RADIUS = 50
-local TOWER_TESTS = 24
+local TOWER_RADIUS = 100
+local TOWER_TESTS = 32
 local WIDE_STRIDE = 0x177BC
 
 local UT = { ENGINEER = 30, SHIELD = 60, TOWER = 58, CATAPULT = 39, TREBUCHET = 40, MANGONEL = 41, FIRE_BALLISTA = 77 }
@@ -602,6 +602,8 @@ local function sendToWall(unit, wall, dock)
 end
 
 local towerMode = {}     -- tower unit -> "wall" / "list" / "follow", for the log
+local towerStill = {}    -- tower unit -> { x, y, rounds } while it is on its way to a wall
+local listFailed = {}    -- tower unit -> true once a wall from the AI's own list got it nowhere
 
 local function commandTowers(player, units)
   if #units.towers == 0 then return end
@@ -614,17 +616,43 @@ local function commandTowers(player, units)
     -- (a docked tower has left its troop and is not in the list at all)
     local busy = u16(a + U.TARGETING) == ORDER_WALL
       and (u16(a + U.ORDER_STATE) == STATE_TO_WALL or u16(a + U.ORDER_STATE) == STATE_DOCKING)
+    -- on its way, but standing still for a while: that wall is not working out
+    local x, y = s16(a + U.X), s16(a + U.Y)
+    if busy then
+      local seen = towerStill[tower]
+      if seen and seen.x == x and seen.y == y then
+        seen.rounds = seen.rounds + 1
+      else
+        seen = { x = x, y = y, rounds = 0 }
+        towerStill[tower] = seen
+      end
+      if seen.rounds >= STUCK_ROUNDS then
+        busy = false
+        towerStill[tower] = nil
+        if towerMode[tower] == "list" then listFailed[tower] = true end
+      end
+    else
+      towerStill[tower] = nil
+    end
     if not busy and unitAlive(tower) then
+      -- given a wall from the AI's list last round and still not on its way: the list fails it
+      if towerMode[tower] == "list" then listFailed[tower] = true end
       local tribe = s16(a + U.TRIBE)
       local wall = F.towerFind(tower, (attacked >= 1 and attacked <= 8) and attacked or 0, TOWER_RADIUS)
       local mode
       if wall ~= 0 then
         sendToWall(tower, wall, rd32(G.data + 0xFC))
         mode = "wall"
-      elseif wide ~= 0 then
+        listFailed[tower] = nil
+      elseif wide ~= 0 and not listFailed[tower] then
         F.assign(G.tribes, tribe, KIND_TOWER_WALLS)
-        mode = "list"
-      else
+        if u16(a + U.TARGETING) == ORDER_WALL then
+          mode = "list"
+        else
+          listFailed[tower] = true      -- the AI's own wall gave it no order
+        end
+      end
+      if mode == nil then
         -- patrol troops first, then siege defence, the main army, any ranged troop of the attack,
         -- and the backup troops only when none of those are left
         if escorts == nil then
@@ -644,7 +672,7 @@ local function commandTowers(player, units)
       if mode ~= nil and towerMode[tower] ~= mode then
         diag("player %d: siege tower %d %s", player, tower, mode == "wall" and
           string.format("goes to dock at wall tile %d", wall) or mode == "list" and
-          "takes a wall from the AI's own list" or "walks with the army, no wall to dock at in reach")
+          "takes a wall from the AI's own list" or "walks with the army, no wall to dock at")
       end
       towerMode[tower] = mode
     end

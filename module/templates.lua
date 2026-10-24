@@ -1158,8 +1158,8 @@ templates.freeTileGame = [[
 ]]
 
 -- towerFind(unit, targetPlayer, radius), cdecl, for lua: the nearest wall tile of the target
--- (any enemy when 0) a siege tower can dock at, ring by ring around the tower, at most MAXTESTS
--- docking tests. eax = the wall tile or 0, [D+0xFC] = where the tower stands.
+-- (any enemy when 0) a siege tower can dock at, ring by ring around the tower (only each ring's
+-- edge: top, right, bottom, left), at most MAXTESTS docking tests. eax = the wall tile or 0, [D+0xFC] = where the tower stands.
 templates.towerFind = [[
   push ebx
   push esi
@@ -1189,28 +1189,34 @@ templates.towerFind = [[
 .ring:
   cmp ebx, [D + 0x110]
   jg .none
+  mov dword [D + 0x124], 0
+.edge:
+  mov eax, [D + 0x124]
+  lea ecx, [ebx*8]
+  cmp eax, ecx
+  jge .nextRing
+  lea ecx, [ebx + ebx]
+  xor edx, edx
+  div ecx
+  mov edi, edx
+  sub edi, ebx
   mov ebp, ebx
   neg ebp
-.dy:
-  cmp ebp, ebx
-  jg .nextRing
+  test eax, eax
+  jz .onRing
+  mov ecx, edi
+  mov edi, ebx
+  mov ebp, ecx
+  cmp eax, 1
+  je .onRing
+  neg ecx
+  mov edi, ecx
+  mov ebp, ebx
+  cmp eax, 2
+  je .onRing
   mov edi, ebx
   neg edi
-.dx:
-  cmp edi, ebx
-  jg .nextDy
-  mov eax, edi
-  cdq
-  xor eax, edx
-  sub eax, edx
-  cmp eax, ebx
-  je .onRing
-  mov eax, ebp
-  cdq
-  xor eax, edx
-  sub eax, edx
-  cmp eax, ebx
-  jne .nextDx
+  mov ebp, ecx
 .onRing:
   mov eax, [D + 0x104]
   add eax, edi
@@ -1250,11 +1256,8 @@ templates.towerFind = [[
   cmp dword [D + 0x114], MAXTESTS
   jge .none
 .nextDx:
-  inc edi
-  jmp .dx
-.nextDy:
-  inc ebp
-  jmp .dy
+  inc dword [D + 0x124]
+  jmp .edge
 .nextRing:
   inc ebx
   jmp .ring
