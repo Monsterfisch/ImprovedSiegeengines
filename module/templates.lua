@@ -157,6 +157,75 @@ templates.catapultHook = [[
 -- The nearest enemy wall, tower or gatehouse within reach of (x, y) (keep doors never, they
 -- cannot be destroyed); a civilian
 -- building only when none of those is in reach (CIVILIAN is added to its distance). eax = 1 found.
+-- In the unit update table for catapults and trebuchets (cdecl, no arguments; the unit is the
+-- current unit). Every 16 ticks an AI engine that walks (state 1 or 0x65) or creeps forward in
+-- the AI's siege steps (9) runs the module's target search; with a target in range it stops
+-- walking and goes idle (state 0, no wait), so that this same tick the game's idle code calls
+-- harassBuildingsWithSiegeAI, whose hooked start finds the target again and shoots it. Then
+-- whatever update function the table held runs.
+templates.walkCheck = [[
+  cmp dword [D + 0x00], 0
+  je .go
+  mov eax, [CURRENT]
+  mov edx, [TICKS]
+  add edx, eax
+  test edx, EVERY
+  jnz .go
+  imul ecx, eax, 0x490
+  movzx edx, word [U_ORDER + ecx]
+  cmp edx, 1
+  je .walking
+  cmp edx, 0x65
+  je .walking
+  cmp edx, 9
+  jne .go
+.walking:
+  movsx edx, word [U_OWNER + ecx]
+  cmp edx, 1
+  jl .go
+  cmp edx, 8
+  jg .go
+  imul edx, edx, PSTRIDE
+  cmp dword [AITYPE + edx], 0
+  je .go
+  movsx edx, word [U_TYPE + ecx]
+  cmp edx, FIRST
+  jl .go
+  cmp edx, LAST
+  jg .go
+  pushad
+  sub edx, FIRST - 2
+  mov eax, [RANGE + edx*4]
+  sub eax, 2
+  jle .none
+  mov [D + 0x30], eax
+  movsx eax, word [U_OWNER + ecx]
+  mov [D + 0x28], eax
+  movsx eax, word [U_X + ecx]
+  mov [D + 0x20], eax
+  movsx eax, word [U_Y + ecx]
+  mov [D + 0x24], eax
+  movsx eax, word [U_TARGETP + ecx]
+  mov [D + 0x2C], eax
+  call SEARCH
+  test eax, eax
+  jz .none
+  push dword [CURRENT]
+  mov ecx, US
+  call STOP
+  mov eax, [CURRENT]
+  imul eax, eax, 0x490
+  mov word [U_ORDER + eax], 0
+  mov dword [U_COOLDOWN + eax], 0
+.none:
+  popad
+.go:
+  mov eax, [CURRENT]
+  imul eax, eax, 0x490
+  movsx eax, word [U_TYPE + eax]
+  jmp dword [ORIGINALS + eax*4]
+]]
+
 templates.catapultSearch = [[
   push ebx
   push esi

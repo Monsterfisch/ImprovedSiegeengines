@@ -14,6 +14,9 @@ EXES = {'vanilla': os.path.join(GAME, 'Stronghold Crusader.exe'),
 
 src = open(os.path.join(HERE, 'module', 'init.lua'), encoding='utf-8').read()
 AOB = dict(re.findall(r'local (AOB_\w+) = "([^"]+)"', src))
+# patterns written over two lines: "..." .. "..."
+for k, a1, a2 in re.findall(r'local (AOB_\w+) = "([^"]+)"\n\s*\.\. "([^"]+)"', src):
+    AOB[k] = a1 + a2
 NUM = {k: int(v, 16) for k, v in re.findall(r'local (\w+) = (-?0x[0-9A-Fa-f]+)\b', src)}
 NUM.update({k: int(v) for k, v in re.findall(r'local (\w+) = (-?\d+)\n', src)})
 SITE = {}
@@ -69,6 +72,13 @@ def check(name, e):
     flags = e.u32(scan('AOB_TILE_FLAGS') + NUM['TILE_FLAGS_OPERAND'])
     teams = e.u32(scan('AOB_TEAMS') + NUM['TEAMS_OPERAND'])
     ticks = e.u32(scan('AOB_TICKS') + NUM['TICKS_OPERAND'])
+    upd = scan('AOB_UPDATE_CALL')
+    expect(upd + SITE['UPDATE_TABLE'][0], SITE['UPDATE_TABLE'][1], 'UPDATE_TABLE')
+    expect(upd + NUM['UPDATE_CURRENT_AT'], [0xA1], 'UPDATE_CURRENT')
+    out['current'] = e.u32(upd + NUM['UPDATE_CURRENT_AT'] + 1)
+    out['stop'] = scan('AOB_STOP_WALKING')
+    print('%-8s update table %X current unit %X stopWalking %X' % (name,
+        e.u32(upd + SITE['UPDATE_TABLE'][0] + 3), out['current'], out['stop']))
     harass = scan('AOB_HARASS')
     expect(harass + SITE['HARASS_HOOK'][0], SITE['HARASS_HOOK'][1], 'HARASS_HOOK')
     for k in ('HARASS_RESULT', 'HARASS_TARGET_X', 'HARASS_TARGET_Y'):

@@ -8,6 +8,11 @@
      rolls on towards the castle until it stands in front of the wall. Now the engine first
      looks all round, as far as it can throw, for the nearest enemy wall, tower, gatehouse or
      building, and shoots that from where it stands.
+     The game only ever looks for a target when an engine stands idle: one that walks - to a
+     raid's target, with the army, forward in the AI's siege steps - passes everything in range.
+     Now a walking AI catapult or trebuchet runs the same search every 16 ticks, and when it
+     finds something it stops and goes idle, where the game's own target choice (with the
+     search above) shoots it.
 
   2. Siege tents. Every tent spot the AI ever used stayed marked as used for the rest of the
      game, so in a long game the tents went further and further out. A spot is free again
@@ -34,7 +39,7 @@ local templates = require("templates")
 local MODULE_NAME = "improved-siegeengines"
 
 local DEFAULTS = {
-  catapults = { enabled = true },
+  catapults = { enabled = true, on_the_way = true },
   tents = { free = true, range = true, variation = 10, engineers = true },
   towers = { dock = true, orders = true },
   shields = { enabled = true },
@@ -147,6 +152,15 @@ local TEAMS_OPERAND = 0x03
 local AOB_TICKS = "8B 87 50 0A 00 00 8B 8F 98 09 00 00 8B 15"
 local TICKS_OPERAND = 0x0E
 local AOB_TILE_FLAGS = "F7 04 9D ? ? ? ? 00 01 00 00"
+-- updateUnits, where it calls each unit's update function from the table by unit type
+-- (smarter-recruits patches the 8 bytes before this), and the current unit before that.
+local AOB_UPDATE_CALL = "0F BF 91 A2 06 00 00 8B 04 95 ? ? ? ? FF D0"
+local UPDATE_TABLE = { 0x07, { 0x8B, 0x04, 0x95 } }
+local UPDATE_CURRENT_AT = -0x19
+local UPDATE_CURRENT_BYTE = { 0xA1 }
+-- UnitsState::stopWalking(unit): clears a unit's path (what the game's attack orders call).
+local AOB_STOP_WALKING = "8B 44 24 04 69 C0 90 04 00 00 03 C1 33 C9 66 89 88 ? ? 00 00 66 89 88 ? ? 00 00 "
+  .. "66 89 88 ? ? 00 00 66 89 88 ? ? 00 00 C2 04 00"
 local TILE_FLAGS_OPERAND = 0x03
 
 ---------------------------------------------------------------------------------------
@@ -157,9 +171,9 @@ local U = { STRIDE = 0x490, STATE = 0x8C, TYPE = 0x8E, OWNER = 0x96, UID = 0x98,
   X = 0xC4, Y = 0xC6, DEPOSIT = 0x388,
   TILE = 0xD4, DYING = 0x2A0, ORDER_STATE = 0x2C0, TRIBE = 0x2D8, TARGET = 0x336,
   TARGETING = 0x39C, WALL_TILE = 0x3A8, DOCK_TILE = 0x3B8, SIEGE_BYTE = 0x3FE, WALL_X = 0x3E8,
-  WALL_Y = 0x3EA, BEHAVIOUR = 0x42A, STATE_OFFSET = 0x614 }
-local P = { STRIDE = 0x39F4, HAS_KEEP = 0x94, KEEP_TILE = 0x1E0, ATTACKED = 0x2BD8, TRIBE_IDS = 0x310C,
-  TRIBE_UIDS = 0x329C }
+  WALL_Y = 0x3EA, COOLDOWN = 0x3BC, SIEGE_TARGET = 0x432, BEHAVIOUR = 0x42A, STATE_OFFSET = 0x614 }
+local P = { STRIDE = 0x39F4, HAS_KEEP = 0x94, KEEP_TILE = 0x1E0, AI_TYPE = 0x2300, ATTACKED = 0x2BD8,
+  TRIBE_IDS = 0x310C, TRIBE_UIDS = 0x329C }
 local T = { OWNER = 0x2C, UID = 0x34, STATE = 0x40, LEADER = 0x5A }
 local MAP = { FLAGS = 0x165160, WALL_OWNER = 0x2C6E50, AREA = 0x363ED0, Y_OF_TILE = 0x742B90,
   ROWS = 0x8A40F8, VALID = 0x71BA90, BUILDINGS = 0x2029B0, UNITS = 0x23D7E0 }
@@ -869,6 +883,7 @@ local function enableCatapults()
   local harass = scan(AOB_HARASS, "the siege engines' target choice")
   expectBytes(harass + HARASS_HOOK[1], HARASS_HOOK[2], "the siege engines' target choice")
   local search = assemble(templates.catapultSearch, values())
+  G.search = search
   local hook = assemble(templates.catapultHook, values({
     SEARCH = search,
     ALG_TILE = operand(harass, HARASS_RESULT, "the search result"),
@@ -963,6 +978,31 @@ local function enableDocking()
   G.freeTile = free
 end
 
+-- Walking AI catapults and trebuchets: the module's stub goes into the unit update table for
+-- both types and chains on to whatever the table held.
+local WALK_TYPES = { UT.CATAPULT, UT.TREBUCHET }
+local WALK_EVERY = 15                        -- every 16 ticks, staggered by unit
+local UNIT_TYPES = 80
+
+local function enableWalking()
+  local call = scan(AOB_UPDATE_CALL, "where every unit's update function is called")
+  local tableAt = operand(call, UPDATE_TABLE, "the unit update table")
+  expectBytes(call + UPDATE_CURRENT_AT, UPDATE_CURRENT_BYTE, "the current unit")
+  local current = rd32(call + UPDATE_CURRENT_AT + 1)
+  local stop = scan(AOB_STOP_WALKING, "the game's stop walking")
+  local originals = core.allocate(UNIT_TYPES * 4, true)
+  for kind = 0, UNIT_TYPES - 1 do wr32(originals + kind * 4, rd32(tableAt + kind * 4)) end
+  local check = assemble(templates.walkCheck, values({
+    CURRENT = current, EVERY = WALK_EVERY, ORIGINALS = originals, STOP = stop, SEARCH = G.search,
+    U_OWNER = G.units + U.OWNER, U_ORDER = G.units + U.ORDER_STATE, U_TYPE = G.units + U.TYPE,
+    U_X = G.units + U.X, U_Y = G.units + U.Y, U_TARGETP = G.units + U.SIEGE_TARGET,
+    U_COOLDOWN = G.units + U.COOLDOWN, AITYPE = G.players + P.AI_TYPE, PSTRIDE = P.STRIDE,
+    FIRST = UT.CATAPULT, LAST = UT.TREBUCHET }))
+  for _, kind in ipairs(WALK_TYPES) do
+    patch(tableAt + kind * 4, core.itob(check), 4)
+  end
+end
+
 local function try(purpose, fn)
   local ok, message = pcall(fn)
   if not ok then
@@ -1026,6 +1066,7 @@ return {
 
   enable = function(self, config)
     O.catapults = setting(config, "catapults", "enabled")
+    O.onTheWay = O.catapults and setting(config, "catapults", "on_the_way")
     O.freeSpots = setting(config, "tents", "free")
     O.tentRange = setting(config, "tents", "range")
     O.variation = number(config, "tents", "variation", 0, 30)
@@ -1042,6 +1083,8 @@ return {
 
     local state = {}
     state.catapults = O.catapults and try("catapults and trebuchets choosing targets", enableCatapults)
+    state.walking = O.onTheWay and state.catapults and try("catapults and trebuchets shooting on the way",
+      enableWalking)
     state.tents = (O.freeSpots or O.tentRange) and try("siege tent placement", enableTents)
     state.dock = O.dock and try("siege tower docking", enableDocking)
     state.commands = (O.towerOrders or O.shields or O.engineers)
@@ -1057,9 +1100,10 @@ return {
     state.engineers = state.commands and O.engineers
 
     local function word(on, ready) return not on and "off" or ready and "on" or "unavailable" end
-    log(INFO, string.format("%s: catapults %s, tent spots %s, tents by range %s (up to %d tiles "
-      .. "short), engineers into tents %s, tower docking %s, tower orders %s, shields %s",
-      MODULE_NAME, word(O.catapults, state.catapults), word(O.freeSpots, state.tents),
+    log(INFO, string.format("%s: catapults %s, shooting on the way %s, tent spots %s, tents by range %s "
+      .. "(up to %d tiles short), engineers into tents %s, tower docking %s, tower orders %s, shields %s",
+      MODULE_NAME, word(O.catapults, state.catapults), word(O.onTheWay, state.walking),
+      word(O.freeSpots, state.tents),
       word(O.tentRange, state.tents), O.variation,
       word(setting(config, "tents", "engineers"), state.engineers), word(O.dock, state.dock),
       word(setting(config, "towers", "orders"), state.towers), word(O.shields, state.commands)))

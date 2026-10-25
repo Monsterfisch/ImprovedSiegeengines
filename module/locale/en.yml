@@ -13,6 +13,14 @@ catapults_enabled: Catapults and trebuchets pick their own targets
 catapults_enabled_tooltip: |
   Off: AI catapults and trebuchets choose their targets exactly as in the unmodified game.
 
+catapults_on_the_way: Catapults and trebuchets stop to shoot on the way
+catapults_on_the_way_tooltip: |
+  In the unmodified game a siege engine only looks for something to shoot while it stands
+  still, so an AI catapult on its way somewhere - a raid, the army's march, its slow creep
+  towards the walls - rolls past everything in range. With this, a walking AI catapult or
+  trebuchet looks all round every few moments, and as soon as an enemy wall, tower, gatehouse or
+  building is in its range it stops and shoots it, choosing the target as above. Needs the
+  setting above.
 tents_group: Siege tents
 tents_group_descr: |
   The AI picks its siege tent spots from a list it works out for each castle. In the

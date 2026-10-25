@@ -15,6 +15,14 @@ options:
     contents:
       type: boolean
       value: true
+  - url: improved-siegeengines.catapults.on_the_way
+    name: improved-siegeengines-catapults-on-the-way
+    text: '{{catapults_on_the_way}}'
+    tooltip: '{{catapults_on_the_way_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
 
 - display: GroupBox
   category: [Improved Siegeengines]
