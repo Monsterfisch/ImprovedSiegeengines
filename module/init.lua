@@ -882,6 +882,39 @@ local function values(extra)
   return v
 end
 
+-- Diagnostics: every target a catapult or trebuchet picks in the module's search, once per
+-- engine and target tile, with what stands on that tile.
+local lastPick = {}
+
+local function logPick()
+  local esi = rd32(G.data + 0x1F4)
+  local index = (esi - G.unitsState) // U.STRIDE
+  local unit = G.units + index * U.STRIDE
+  local tile = rd32(G.data + 0x3C)
+  if lastPick[index] == tile then return end
+  lastPick[index] = tile
+  local ex, ey = rd32(G.data + 0x20), rd32(G.data + 0x24)
+  local tx, ty = rd32(G.data + 0x40), rd32(G.data + 0x44)
+  local flags = rd32(G.flags + tile * 4)
+  local what
+  if flags & 0x100 ~= 0 then
+    what = string.format("wall of player %d", (core.readByte(G.wallOwner + tile) & 7) + 1)
+  else
+    local id = core.readSmallInteger(G.buildingIds + tile * 2)
+    if id > 0 then
+      local b = G.buildings + id * B.STRIDE
+      what = string.format("building %d (type %d) of player %d", id, core.readSmallInteger(b + B.TYPE),
+        core.readSmallInteger(b + B.OWNER))
+    else
+      what = "no wall or building"
+    end
+  end
+  local kind = core.readSmallInteger(unit + U.TYPE) == UT.TREBUCHET and "trebuchet" or "catapult"
+  diag("%s %d of player %d at (%d,%d) aims at (%d,%d), %d tiles away: %s, tile flags 0x%X, "
+    .. "target player %d", kind, index, rd32(G.data + 0x28), ex, ey, tx, ty,
+    math.floor(math.sqrt((tx - ex) ^ 2 + (ty - ey) ^ 2) + 0.5), what, flags, rd32(G.data + 0x2C))
+end
+
 local function enableCatapults()
   local harass = scan(AOB_HARASS, "the siege engines' target choice")
   expectBytes(harass + HARASS_HOOK[1], HARASS_HOOK[2], "the siege engines' target choice")
@@ -891,7 +924,7 @@ local function enableCatapults()
     PLORDUID = G.players + P.LORD_UID, U_STATE = G.units + U.STATE, U_TYPE = G.units + U.TYPE,
     U_UID = G.units + U.UID, LORDTYPE = UT.LORD }))
   local hook = assemble(templates.catapultHook, values({
-    SEARCH = search, LIVE = G.live,
+    SEARCH = search, LIVE = G.live, PICKLOG = luaFunction("the catapult target log", logPick),
     ALG_TILE = operand(harass, HARASS_RESULT, "the search result"),
     ALG_X = operand(harass, HARASS_TARGET_X, "the search result"),
     ALG_Y = operand(harass, HARASS_TARGET_Y, "the search result"),
@@ -1101,6 +1134,7 @@ return {
     wr32(G.data + 0x08, (state.tents and O.tentRange) and 1 or 0)
     wr32(G.data + 0x0C, O.variation)
     wr32(G.data + 0x10, state.dock and 1 or 0)
+    wr32(G.data + 0x1F0, (O.log and state.catapults) and 1 or 0)
     if not state.commands then O.shields, O.towerOrders, O.engineers = false, false, false end
     state.towers = state.commands and O.towerOrders
     state.engineers = state.commands and O.engineers
@@ -1118,6 +1152,7 @@ return {
   disable = function(self, config)
     if G.data ~= nil then
       for offset = 0x00, 0x10, 4 do wr32(G.data + offset, 0) end
+      wr32(G.data + 0x1F0, 0)
     end
     O.shields, O.towerOrders, O.engineers = false, false, false
     for index = #patched, 1, -1 do

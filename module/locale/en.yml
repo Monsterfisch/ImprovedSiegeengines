@@ -100,4 +100,4 @@ diagnostics_group_descr: |
   For testing. Writes a line to ucp3.log when an AI shield, siege tower or engineer is given a new place
   to go, and a summary of each AI's siege round (what it found and left out) whenever that changes.
 diagnostics_log: Write AI decisions to the log
-diagnostics_log_tooltip: Off for normal play.
+diagnostics_log_tooltip: Off for normal play. Writes the AI's siege rounds to ucp3.log, and every target a catapult or trebuchet picks (where it stands, the target tile and what is on it).

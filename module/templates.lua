@@ -24,6 +24,8 @@
       0x118 owner  0x11C team  0x120 wall  0xFC dock found
     lua
       0x130 player
+    diagnostics
+      0x1F0 log the catapults' targets    0x1F4 the engine that just chose one (UnitsState relative)
 ]]
 
 local templates = {}
@@ -126,6 +128,11 @@ templates.catapultHook = [[
   call SEARCH
   test eax, eax
   jz .none
+  cmp dword [D + 0x1F0], 0
+  je .noLog
+  mov [D + 0x1F4], esi
+  call PICKLOG
+.noLog:
   mov eax, [D + 0x40]
   mov [ALG_X], eax
   mov eax, [D + 0x44]
