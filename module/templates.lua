@@ -121,6 +121,7 @@ templates.catapultHook = [[
   movsx eax, word [esi + 0x6DA]
   mov [D + 0x24], eax
   movsx eax, word [esi + 0xA46]
+  call LIVE
   mov [D + 0x2C], eax
   call SEARCH
   test eax, eax
@@ -157,6 +158,40 @@ templates.catapultHook = [[
 -- The nearest enemy wall, tower or gatehouse within reach of (x, y) (keep doors never, they
 -- cannot be destroyed); a civilian
 -- building only when none of those is in reach (CIVILIAN is added to its distance). eax = 1 found.
+-- eax = the engine's siege target player -> eax = that player while his lord lives, else 0, which
+-- makes the target search take any enemy: the next opponent once the first is beaten. Keeps
+-- every other register.
+templates.livePlayer = [[
+  cmp eax, 1
+  jl .none
+  cmp eax, 8
+  jg .none
+  push edx
+  push ecx
+  mov edx, eax
+  imul edx, edx, PSTRIDE
+  mov ecx, [PLORD + edx]
+  test ecx, ecx
+  jle .dead
+  imul ecx, ecx, 0x490
+  cmp word [U_STATE + ecx], 2
+  jne .dead
+  cmp word [U_TYPE + ecx], LORDTYPE
+  jne .dead
+  mov ecx, [U_UID + ecx]
+  cmp ecx, [PLORDUID + edx]
+  jne .dead
+  pop ecx
+  pop edx
+  ret
+.dead:
+  pop ecx
+  pop edx
+.none:
+  xor eax, eax
+  ret
+]]
+
 -- In the unit update table for catapults and trebuchets (cdecl, no arguments; the unit is the
 -- current unit). Every 16 ticks an AI engine that walks (state 1 or 0x65) or creeps forward in
 -- the AI's siege steps (9) runs the module's target search; with a target in range it stops
@@ -206,6 +241,7 @@ templates.walkCheck = [[
   movsx eax, word [U_Y + ecx]
   mov [D + 0x24], eax
   movsx eax, word [U_TARGETP + ecx]
+  call LIVE
   mov [D + 0x2C], eax
   call SEARCH
   test eax, eax

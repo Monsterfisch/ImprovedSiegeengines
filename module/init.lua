@@ -13,6 +13,8 @@
      Now a walking AI catapult or trebuchet runs the same search every 16 ticks, and when it
      finds something it stops and goes idle, where the game's own target choice (with the
      search above) shoots it.
+     The search is for the engine's siege target player only; once that player's lord is dead
+     it takes any enemy, so the engines go on with the next opponent.
 
   2. Siege tents. Every tent spot the AI ever used stayed marked as used for the rest of the
      game, so in a long game the tents went further and further out. A spot is free again
@@ -172,7 +174,8 @@ local U = { STRIDE = 0x490, STATE = 0x8C, TYPE = 0x8E, OWNER = 0x96, UID = 0x98,
   TILE = 0xD4, DYING = 0x2A0, ORDER_STATE = 0x2C0, TRIBE = 0x2D8, TARGET = 0x336,
   TARGETING = 0x39C, WALL_TILE = 0x3A8, DOCK_TILE = 0x3B8, SIEGE_BYTE = 0x3FE, WALL_X = 0x3E8,
   WALL_Y = 0x3EA, COOLDOWN = 0x3BC, SIEGE_TARGET = 0x432, BEHAVIOUR = 0x42A, STATE_OFFSET = 0x614 }
-local P = { STRIDE = 0x39F4, HAS_KEEP = 0x94, KEEP_TILE = 0x1E0, AI_TYPE = 0x2300, ATTACKED = 0x2BD8,
+local P = { STRIDE = 0x39F4, HAS_KEEP = 0x94, KEEP_TILE = 0x1E0, LORD = 0x21F8, LORD_UID = 0x21FC,
+  AI_TYPE = 0x2300, ATTACKED = 0x2BD8,
   TRIBE_IDS = 0x310C, TRIBE_UIDS = 0x329C }
 local T = { OWNER = 0x2C, UID = 0x34, STATE = 0x40, LEADER = 0x5A }
 local MAP = { FLAGS = 0x165160, WALL_OWNER = 0x2C6E50, AREA = 0x363ED0, Y_OF_TILE = 0x742B90,
@@ -194,7 +197,7 @@ local TOWER_RADIUS = 100
 local TOWER_TESTS = 32
 local WIDE_STRIDE = 0x177BC
 
-local UT = { ENGINEER = 30, SHIELD = 60, TOWER = 58, CATAPULT = 39, TREBUCHET = 40, MANGONEL = 41, FIRE_BALLISTA = 77 }
+local UT = { LORD = 55, ENGINEER = 30, SHIELD = 60, TOWER = 58, CATAPULT = 39, TREBUCHET = 40, MANGONEL = 41, FIRE_BALLISTA = 77 }
 local RANGED_ENGINES = { [39] = true, [40] = true, [41] = true, [77] = true }
 
 -- Troop slots in the AI's attack troop list (aiTribeIDs).
@@ -884,8 +887,11 @@ local function enableCatapults()
   expectBytes(harass + HARASS_HOOK[1], HARASS_HOOK[2], "the siege engines' target choice")
   local search = assemble(templates.catapultSearch, values())
   G.search = search
+  G.live = assemble(templates.livePlayer, values({ PSTRIDE = P.STRIDE, PLORD = G.players + P.LORD,
+    PLORDUID = G.players + P.LORD_UID, U_STATE = G.units + U.STATE, U_TYPE = G.units + U.TYPE,
+    U_UID = G.units + U.UID, LORDTYPE = UT.LORD }))
   local hook = assemble(templates.catapultHook, values({
-    SEARCH = search,
+    SEARCH = search, LIVE = G.live,
     ALG_TILE = operand(harass, HARASS_RESULT, "the search result"),
     ALG_X = operand(harass, HARASS_TARGET_X, "the search result"),
     ALG_Y = operand(harass, HARASS_TARGET_Y, "the search result"),
@@ -993,7 +999,7 @@ local function enableWalking()
   local originals = core.allocate(UNIT_TYPES * 4, true)
   for kind = 0, UNIT_TYPES - 1 do wr32(originals + kind * 4, rd32(tableAt + kind * 4)) end
   local check = assemble(templates.walkCheck, values({
-    CURRENT = current, EVERY = WALK_EVERY, ORIGINALS = originals, STOP = stop, SEARCH = G.search,
+    CURRENT = current, EVERY = WALK_EVERY, ORIGINALS = originals, STOP = stop, SEARCH = G.search, LIVE = G.live,
     U_OWNER = G.units + U.OWNER, U_ORDER = G.units + U.ORDER_STATE, U_TYPE = G.units + U.TYPE,
     U_X = G.units + U.X, U_Y = G.units + U.Y, U_TARGETP = G.units + U.SIEGE_TARGET,
     U_COOLDOWN = G.units + U.COOLDOWN, AITYPE = G.players + P.AI_TYPE, PSTRIDE = P.STRIDE,

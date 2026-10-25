@@ -8,7 +8,8 @@ catapults_group_descr: |
   throw, for the nearest enemy wall, tower or gatehouse and shoots that from where it stands.
   Farms, workshops, houses and other civilian buildings are only shot at once no fortification
   is left in reach. It only rolls closer when there is really nothing in
-  reach. Fire ballistas already do this in the unmodified game and are left alone.
+  reach. Once the player it was sent against is beaten (his lord is dead), it shoots at any other
+  enemy instead. Fire ballistas already do this in the unmodified game and are left alone.
 catapults_enabled: Catapults and trebuchets pick their own targets
 catapults_enabled_tooltip: |
   Off: AI catapults and trebuchets choose their targets exactly as in the unmodified game.

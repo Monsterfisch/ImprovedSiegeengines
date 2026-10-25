@@ -1,6 +1,6 @@
 # Improved Siegeengines
 
-Version 1.0.11
+Version 1.0.12
 
 The AI's siege engines in the unmodified game waste themselves: catapults roll up to the wall
 they could have hit from far away, siege tents creep further out the longer a game goes until
@@ -23,6 +23,10 @@ siege engine stands still, so AI catapults on a raid, marching with the army or 
 the walls rolled past everything in range. Now a walking AI catapult or trebuchet looks all round
 every few moments and stops to shoot as soon as an enemy wall, tower, gatehouse or building is in
 its range.
+
+**On to the next opponent.** A catapult or trebuchet only aims at the player its army was sent
+against. Once that player is beaten (his lord is dead), it shoots at any other enemy in range
+instead of standing idle.
 
 **Siege tent spots are used again.** Once a spot's troop is gone, nothing stands on it and no
 enemy soldier is close enough to attack an engine there, the AI can put a new tent on it. In
