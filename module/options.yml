@@ -31,6 +31,14 @@ options:
     contents:
       type: boolean
       value: true
+  - url: improved-siegeengines.catapults.drop_destroyed
+    name: improved-siegeengines-catapults-drop-destroyed
+    text: '{{catapults_drop_destroyed}}'
+    tooltip: '{{catapults_drop_destroyed_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
   - url: improved-siegeengines.catapults.scatter
     name: improved-siegeengines-catapults-scatter
     text: '{{catapults_scatter}}'

@@ -28,6 +28,13 @@ catapults_other_enemies_tooltip: |
   player is in reach it rolls on towards his castle, past other enemies' walls and buildings.
   With this on it shoots those instead - the besieged player's walls and buildings still come
   first whenever one is in reach.
+catapults_drop_destroyed: Stop shooting at destroyed buildings
+catapults_drop_destroyed_tooltip: |
+  A siege engine aiming at a building (a fire ballista at something that burns, or a catapult
+  ordered at a building) kept shooting that building's empty spot after it was destroyed, and
+  never moved on - the game only checked the building's number, which stays until another
+  building takes it. Now a destroyed target is dropped and the engine looks for a new one.
+  Works for every siege engine, fire ballistas included.
 catapults_scatter: AI catapult and trebuchet scatter (%)
 catapults_scatter_tooltip: |
   How far AI catapult and trebuchet shots miss, compared with the game. The game lets a

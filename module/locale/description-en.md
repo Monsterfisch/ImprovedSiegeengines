@@ -1,6 +1,6 @@
 # Improved Siegeengines
 
-Version 1.0.14
+Version 1.0.15
 
 The AI's siege engines in the unmodified game waste themselves: catapults roll up to the wall
 they could have hit from far away, siege tents creep further out the longer a game goes until
@@ -32,6 +32,12 @@ instead of standing idle.
 catapult or trebuchet shoots other enemies' walls and buildings in reach instead of rolling past
 them. The besieged player's still come first. Buildings that are already destroyed are never
 aimed at.
+
+**No more shooting at ruins.** A siege engine aiming at a building - a fire ballista at
+something that burns, or a catapult ordered at a building - went on shooting the empty spot once
+that building was destroyed, and never moved on. That was the game checking only the building's
+number, which stays the same until another building takes it. Now a destroyed target is dropped
+and the engine picks a new one. This covers fire ballistas too.
 
 **Better aim.** The game lets an AI catapult's rock land up to 12 tiles short of its target and 6
 to the side, so at long range most rocks hit open ground in front of the wall. The miss is now

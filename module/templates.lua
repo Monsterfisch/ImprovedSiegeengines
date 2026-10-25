@@ -163,6 +163,22 @@ templates.catapultHook = [[
   jmp RESUME
 ]]
 
+-- harassBuildingsWithSiegeAI, an engine with a building target (targetingType 9: a fire
+-- ballista's burnable building, or an attack-building order): the game only checks that the
+-- building's uid still matches, and a destroyed building keeps its uid until the slot is reused,
+-- so the engine shoots the empty spot for ever and never moves. Also require the building to be
+-- standing (logicalState 2); else the game's own "target lost" (targetingType 3, search again).
+-- ecx = building * 0x32C, esi = the unit (UnitsState relative), edx = the building's uid.
+templates.standingTarget = [[
+  cmp edx, [esi + 0x9B4]
+  jne .lost
+  cmp word [ecx + BSTATE], 2
+  jne .lost
+  jmp BACK
+.lost:
+  jmp LOST
+]]
+
 -- setRandomShootLocation, where the random miss is ready (ecx along the engine's facing, esi
 -- across it, edi the height) and about to be clamped: for AI catapults and trebuchets it is
 -- scaled to SCATTER percent, and a catapult's miss - the game's runs 12 tiles short to 4 long -
