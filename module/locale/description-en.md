@@ -1,6 +1,6 @@
 # Improved Siegeengines
 
-Version 1.0.12
+Version 1.0.14
 
 The AI's siege engines in the unmodified game waste themselves: catapults roll up to the wall
 they could have hit from far away, siege tents creep further out the longer a game goes until
@@ -27,6 +27,16 @@ its range.
 **On to the next opponent.** A catapult or trebuchet only aims at the player its army was sent
 against. Once that player is beaten (his lord is dead), it shoots at any other enemy in range
 instead of standing idle.
+
+**Other enemies in reach.** When nothing of the player it was sent against is in reach, a
+catapult or trebuchet shoots other enemies' walls and buildings in reach instead of rolling past
+them. The besieged player's still come first. Buildings that are already destroyed are never
+aimed at.
+
+**Better aim.** The game lets an AI catapult's rock land up to 12 tiles short of its target and 6
+to the side, so at long range most rocks hit open ground in front of the wall. The miss is now
+halved and centred on the target (a setting; 100% keeps the game's aim). Your own engines aim as
+before.
 
 **Siege tent spots are used again.** Once a spot's troop is gone, nothing stands on it and no
 enemy soldier is close enough to attack an engine there, the AI can put a new tent on it. In

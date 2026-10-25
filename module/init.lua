@@ -41,7 +41,7 @@ local templates = require("templates")
 local MODULE_NAME = "improved-siegeengines"
 
 local DEFAULTS = {
-  catapults = { enabled = true, on_the_way = true },
+  catapults = { enabled = true, on_the_way = true, other_enemies = true, scatter = 50 },
   tents = { free = true, range = true, variation = 10, engineers = true },
   towers = { dock = true, orders = true },
   shields = { enabled = true },
@@ -190,6 +190,8 @@ local MELEE_REACH = 10
 -- Added to a civilian building's distance in the catapults' search: any fortification in reach
 -- comes first.
 local CIVILIAN_PENALTY = 0x1000000
+-- Added for a wall or building of another enemy than the besieged player: his come first.
+local OTHER_PENALTY = 0x2000000
 -- A ranged engine's tent stands this many tiles inside its reach: the tent's own 3x3 and the
 -- tile or two the engine rolls out beside it, so even the far end of the band is in range.
 local TENT_MARGIN = 6
@@ -876,7 +878,8 @@ local function values(extra)
     RANGE = G.range, TICKS = G.ticks, UNITS = G.units, US = G.unitsState, TRIBES = G.tribes,
     TSTRIDE = G.tribeStride, PLAYERS = G.players, MAXUNITS = G.maxUnits,
     MAXTRIBES = MAX_TRIBES, TILES = TILES, TILEAT = G.tileAt, WALLAT = G.wallAt,
-    CLEARAT = G.clearAt, FORT = G.fort, CIVILIAN = CIVILIAN_PENALTY,
+    CLEARAT = G.clearAt, FORT = G.fort, CIVILIAN = CIVILIAN_PENALTY, OTHER = OTHER_PENALTY,
+    BSTATE = G.buildings + B.STATE,
   }
   for name, value in pairs(extra or {}) do v[name] = value end
   return v
@@ -937,6 +940,26 @@ local function enableCatapults()
   }))
   patch(harass + HARASS_HOOK[1], jumpCode(harass + HARASS_HOOK[1], hook, HARASS_HOOK_SIZE),
     HARASS_HOOK_SIZE)
+end
+
+-- setRandomShootLocation(unit, x, y, z): the random miss of a shot, ready at +0x286 just before
+-- the height is clamped (cmp edi, 8 / jge +7).
+local AOB_SCATTER = "51 8B 44 24 08 8B 54 24 0C 69 C0 90 04 00 00 53 55 56 8D 34 08"
+local SCATTER_HOOK = { 0x286, { 0x83, 0xFF, 0x08, 0x7D, 0x07 } }
+local SCATTER_TYPE = { 0x63, { 0x0F, 0xB7, 0x86, 0xA2, 0x06, 0x00, 0x00 } }
+
+local function enableScatter()
+  local scatter = scan(AOB_SCATTER, "the siege engines' aim")
+  expectBytes(scatter + SCATTER_HOOK[1], SCATTER_HOOK[2], "the siege engines' aim")
+  expectBytes(scatter + SCATTER_TYPE[1], SCATTER_TYPE[2], "the siege engines' aim")
+  local site = scatter + SCATTER_HOOK[1]
+  local hundred = core.allocate(4, true)
+  wr32(hundred, 100)
+  local hook = assemble(templates.scatterHook, values({
+    PSTRIDE = P.STRIDE, AITYPE = P.AI_TYPE, SCATTER = O.scatter, HUNDRED = hundred,
+    LOW = site + 5, HIGH = site + 5 + 7,
+  }))
+  patch(site, jumpCode(site, hook, 5), 5)
 end
 
 local function enableTents()
@@ -1106,6 +1129,8 @@ return {
   enable = function(self, config)
     O.catapults = setting(config, "catapults", "enabled")
     O.onTheWay = O.catapults and setting(config, "catapults", "on_the_way")
+    O.otherEnemies = O.catapults and setting(config, "catapults", "other_enemies")
+    O.scatter = number(config, "catapults", "scatter", 0, 100)
     O.freeSpots = setting(config, "tents", "free")
     O.tentRange = setting(config, "tents", "range")
     O.variation = number(config, "tents", "variation", 0, 30)
@@ -1124,6 +1149,7 @@ return {
     state.catapults = O.catapults and try("catapults and trebuchets choosing targets", enableCatapults)
     state.walking = O.onTheWay and state.catapults and try("catapults and trebuchets shooting on the way",
       enableWalking)
+    state.scatter = O.scatter < 100 and try("catapult and trebuchet scatter", enableScatter)
     state.tents = (O.freeSpots or O.tentRange) and try("siege tent placement", enableTents)
     state.dock = O.dock and try("siege tower docking", enableDocking)
     state.commands = (O.towerOrders or O.shields or O.engineers)
@@ -1135,14 +1161,18 @@ return {
     wr32(G.data + 0x0C, O.variation)
     wr32(G.data + 0x10, state.dock and 1 or 0)
     wr32(G.data + 0x1F0, (O.log and state.catapults) and 1 or 0)
+    wr32(G.data + 0x1F8, O.otherEnemies and 1 or 0)
     if not state.commands then O.shields, O.towerOrders, O.engineers = false, false, false end
     state.towers = state.commands and O.towerOrders
     state.engineers = state.commands and O.engineers
 
     local function word(on, ready) return not on and "off" or ready and "on" or "unavailable" end
-    log(INFO, string.format("%s: catapults %s, shooting on the way %s, tent spots %s, tents by range %s "
+    log(INFO, string.format("%s: catapults %s, shooting on the way %s, other enemies %s, scatter %s, "
+      .. "tent spots %s, tents by range %s "
       .. "(up to %d tiles short), engineers into tents %s, tower docking %s, tower orders %s, shields %s",
       MODULE_NAME, word(O.catapults, state.catapults), word(O.onTheWay, state.walking),
+      O.otherEnemies and "on" or "off",
+      O.scatter >= 100 and "the game's own" or (state.scatter and (O.scatter .. "%") or "unavailable"),
       word(O.freeSpots, state.tents),
       word(O.tentRange, state.tents), O.variation,
       word(setting(config, "tents", "engineers"), state.engineers), word(O.dock, state.dock),

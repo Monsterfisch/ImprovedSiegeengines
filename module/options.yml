@@ -23,6 +23,25 @@ options:
     contents:
       type: boolean
       value: true
+  - url: improved-siegeengines.catapults.other_enemies
+    name: improved-siegeengines-catapults-other-enemies
+    text: '{{catapults_other_enemies}}'
+    tooltip: '{{catapults_other_enemies_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: improved-siegeengines.catapults.scatter
+    name: improved-siegeengines-catapults-scatter
+    text: '{{catapults_scatter}}'
+    tooltip: '{{catapults_scatter_tooltip}}'
+    display: Number
+    contents:
+      type: integer
+      value: 50
+      min: 0
+      max: 100
+      step: 10
 
 - display: GroupBox
   category: [Improved Siegeengines]

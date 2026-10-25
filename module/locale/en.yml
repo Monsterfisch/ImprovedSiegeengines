@@ -22,6 +22,19 @@ catapults_on_the_way_tooltip: |
   trebuchet looks all round every few moments, and as soon as an enemy wall, tower, gatehouse or
   building is in its range it stops and shoots it, choosing the target as above. Needs the
   setting above.
+catapults_other_enemies: Shoot other enemies in reach too
+catapults_other_enemies_tooltip: |
+  An AI catapult or trebuchet only shoots at the player it is besieging. When nothing of that
+  player is in reach it rolls on towards his castle, past other enemies' walls and buildings.
+  With this on it shoots those instead - the besieged player's walls and buildings still come
+  first whenever one is in reach.
+catapults_scatter: AI catapult and trebuchet scatter (%)
+catapults_scatter_tooltip: |
+  How far AI catapult and trebuchet shots miss, compared with the game. The game lets a
+  catapult rock land up to 12 tiles short (4 long) and 6 to the side, and a trebuchet up to 6
+  to the side - at long range most of them hit open ground in front of the wall. Below 100 the
+  miss is scaled down and a catapult's is centred on its target. 100 keeps the game's own aim.
+  Your own engines are not changed.
 tents_group: Siege tents
 tents_group_descr: |
   The AI picks its siege tent spots from a list it works out for each castle. In the

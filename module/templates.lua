@@ -26,6 +26,7 @@
       0x130 player
     diagnostics
       0x1F0 log the catapults' targets    0x1F4 the engine that just chose one (UnitsState relative)
+      0x1F8 other enemies than the besieged player may be shot (ranked after his)
 ]]
 
 local templates = {}
@@ -160,6 +161,51 @@ templates.catapultHook = [[
 .vanilla:
   mov ebx, 0x15
   jmp RESUME
+]]
+
+-- setRandomShootLocation, where the random miss is ready (ecx along the engine's facing, esi
+-- across it, edi the height) and about to be clamped: for AI catapults and trebuchets it is
+-- scaled to SCATTER percent, and a catapult's miss - the game's runs 12 tiles short to 4 long -
+-- is first centred on the target. [esp + 0x10] is the unit (UnitsState relative).
+templates.scatterHook = [[
+  push eax
+  push edx
+  mov eax, [esp + 0x18]
+  movsx edx, word [eax + 0x6AA]
+  cmp edx, 1
+  jl .done
+  cmp edx, 8
+  jg .done
+  imul edx, edx, PSTRIDE
+  cmp dword [PLAYERS + edx + AITYPE], 0
+  je .done
+  movzx eax, word [eax + 0x6A2]
+  cmp eax, 0x27
+  je .catapult
+  cmp eax, 0x28
+  jne .done
+  jmp .scale
+.catapult:
+  add ecx, 0x20
+.scale:
+  mov eax, ecx
+  imul eax, eax, SCATTER
+  cdq
+  idiv dword [HUNDRED]
+  mov ecx, eax
+  mov eax, esi
+  imul eax, eax, SCATTER
+  cdq
+  idiv dword [HUNDRED]
+  mov esi, eax
+.done:
+  pop edx
+  pop eax
+  cmp edi, 8
+  jge .high
+  jmp LOW
+.high:
+  jmp HIGH
 ]]
 
 -- The nearest enemy wall, tower or gatehouse within reach of (x, y) (keep doors never, they
@@ -337,6 +383,8 @@ templates.catapultSearch = [[
   test eax, eax
   jle .nextCol
   imul eax, eax, 0x32C
+  cmp word [BSTATE + eax], 2
+  jne .nextCol
   movsx edx, word [BTYPE + eax]
   cmp edx, 0
   jl .nextCol
@@ -364,8 +412,10 @@ templates.catapultSearch = [[
   test edx, edx
   jz .team
   cmp eax, edx
-  jne .nextCol
-  jmp .take
+  je .take
+  cmp dword [D + 0x1F8], 0
+  je .nextCol
+  add dword [D + 0x54], OTHER
 .team:
   cmp eax, [D + 0x28]
   je .nextCol
