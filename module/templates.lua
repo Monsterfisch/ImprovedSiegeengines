@@ -1570,6 +1570,7 @@ templates.commandEnd = [[
     0x10 generation  0x14 count  0x18 head  0x1C buildings  0x20/0x24 target x/y
     0x28/0x2C engineer x/y  0x30/0x34 target - engineer  0x38 its length^2
     0x40/0x44 ring dx/dy  0x48 ring index  0x4C owner  0x50/0x54 landing x/y  0x58 depth
+    0x94 aims written  0x98/0x9C newest matching aim and its tick
     0x5C entry being expanded  0x64 queued events  0x68 last tick  0x6C its step  0x70.. the event being queued: due tick,
     kind (0 fire, 1 damage), owner, then mx, my, z, strength or tile, x, y, damage
   PEND: 32 bytes per queued event, the same eight dwords (due 0 = a free slot).
@@ -1762,6 +1763,19 @@ templates.oilAim = [[
   xor eax, eax
   jmp .out
 .ok:
+  mov eax, [OIL + 0x94]
+  inc dword [OIL + 0x94]
+  and eax, 31
+  shl eax, 4
+  add eax, AIMS
+  movsx ecx, word [esi + 0x96]
+  mov [eax], ecx
+  movsx ecx, word [esi + 0x3E8]
+  mov [eax + 4], ecx
+  movsx ecx, word [esi + 0x3EA]
+  mov [eax + 8], ecx
+  mov ecx, [TICKS]
+  mov [eax + 12], ecx
   mov eax, 1
 .out:
   pop ebp
@@ -1848,10 +1862,10 @@ templates.oilFire = [[
 
 -- oilSpread(owner, mx, my, height, strength), cdecl, in place of the fire an oil pot starts where
 -- it lands: the same amount of oil spread over the ground - a flood from the landing tile over
--- pourable tiles of about the same height, AMOUNT tiles. Each tile burns with a strength from 5 at
--- the landing tile down to 2 at the far end (3 and up is the tall flame a pitch ditch burns with,
--- 2 a smaller one); none of these fires spreads by itself, so nothing burns past the oil and no
--- building catches. Narrow ground carries the oil far, open ground keeps it a pool.
+-- pourable tiles of about the same height, AMOUNT tiles, starting where the pot was aimed (its
+-- engineer's last pour near there) or the ground nearest to it. Every tile burns like a pitch
+-- ditch: strength 5 at the landing tile, a random 2..5 (mostly 3, the tall flame) elsewhere; none
+-- of these fires spreads by itself, so nothing burns past the oil and no building catches. Narrow ground carries the oil far, open ground keeps it a pool.
 -- With building damage on, a flammable building it touches loses a third of its health at most,
 -- less the further from the landing tile the oil that reaches it is.
 templates.oilSpread = [[
@@ -1869,6 +1883,48 @@ templates.oilSpread = [[
   mov eax, [esp + 0x1C]
   sar eax, 3
   mov [OIL + 0x54], eax
+  mov dword [OIL + 0x98], -1
+  xor ecx, ecx
+.aim:
+  cmp ecx, 32
+  jge .aimed
+  mov edx, ecx
+  shl edx, 4
+  add edx, AIMS
+  mov eax, [edx]
+  cmp eax, [OIL + 0x4C]
+  jne .aimNext
+  mov eax, [edx + 4]
+  sub eax, [OIL + 0x50]
+  add eax, 4
+  cmp eax, 8
+  ja .aimNext
+  mov eax, [edx + 8]
+  sub eax, [OIL + 0x54]
+  add eax, 4
+  cmp eax, 8
+  ja .aimNext
+  mov eax, [edx + 12]
+  cmp dword [OIL + 0x98], -1
+  je .aimTake
+  cmp eax, [OIL + 0x9C]
+  jl .aimNext
+.aimTake:
+  mov [OIL + 0x98], edx
+  mov [OIL + 0x9C], eax
+.aimNext:
+  inc ecx
+  jmp .aim
+.aimed:
+  mov edx, [OIL + 0x98]
+  cmp edx, -1
+  je .center
+  mov eax, [edx + 4]
+  mov [OIL + 0x50], eax
+  mov eax, [edx + 8]
+  mov [OIL + 0x54], eax
+  mov dword [edx], 0
+.center:
   mov eax, [OIL + 0x50]
   mov edx, [OIL + 0x54]
   call TILEAT
@@ -1880,7 +1936,7 @@ templates.oilSpread = [[
 .land:
   mov ebx, 1
 .lring:
-  cmp ebx, 2
+  cmp ebx, 3
   jg .out
   mov dword [OIL + 0x48], 0
 .lstep:
@@ -2025,18 +2081,16 @@ templates.oilSpread = [[
   jge .damage
   mov edi, esi
   shl edi, 4
-  mov eax, [OIL + 0x58]
-  sub eax, [QUEUE + edi + 12]
-  imul eax, eax, 3
-  add eax, [OIL + 0x58]
-  mov ecx, [OIL + 0x58]
-  inc ecx
-  xor edx, edx
-  div ecx
-  lea ebx, [eax + 2]
-  cmp ebx, 5
-  jle .strength
   mov ebx, 5
+  test esi, esi
+  jz .strength
+  mov eax, [QUEUE + edi]
+  imul eax, eax, 0x45D9F3B
+  add eax, [TICKS]
+  imul eax, eax, 0x2C1B3C6D
+  shr eax, 16
+  and eax, 7
+  movzx ebx, byte [MIX + eax]
 .strength:
   mov [OIL + 0x8C], ebx
   mov dword [OIL + 0x74], 0

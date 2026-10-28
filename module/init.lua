@@ -1155,10 +1155,13 @@ local function enableOil()
     wr32(dirs + 8 * (i - 1) + 4, d[2])
   end
   local tms = G.flags - MAP.FLAGS
+  -- how strong each oil fire burns, picked at random: mostly 3 (the tall pitch flame)
+  local mix = core.allocate(8, true)
+  for i, strength in ipairs({ 2, 3, 3, 3, 3, 4, 4, 5 }) do core.writeByte(mix + i - 1, strength) end
   local v = values({ OIL = G.oil, DIRS = dirs, HEIGHT = tms + MAP.HEIGHT, TMS = tms,
     QUEUE = core.allocate(16 * 256, true), BLIST = core.allocate(16 * 32, true),
     BDEPTH = core.allocate(4 * 32, true), STAMP = core.allocate(4 * TILES, true),
-    QFLAG = core.allocate(256, true), PEND = core.allocate(32 * OILAT.OIL_EVENTS, true),
+    QFLAG = core.allocate(256, true), AIMS = core.allocate(16 * 32, true), MIX = mix, PEND = core.allocate(32 * OILAT.OIL_EVENTS, true),
     PENDMAX = OILAT.OIL_EVENTS, STEP = OILAT.OIL_STEP, TICKS = G.ticks, FIREPARAM = operand(fire, OILAT.FIRE_STRENGTH, "the fire strength"),
     FLAMMABLE = flammable, BSTATE = G.buildingsState,
     BMAXHP = G.buildings + B.MAX_HEALTH, DAMAGE = damage, FIRE = fire, FIRE_AT = fire + OILAT.FIRE_AT[1],

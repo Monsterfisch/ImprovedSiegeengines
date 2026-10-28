@@ -134,9 +134,10 @@ oil_spread_tooltip: |
   The oil from one pot runs out over the ground it lands on, tile by tile, instead of burning in
   a fixed shape: the same amount of oil covers the same number of tiles. In open ground it is a
   round pool, in a narrow passage it runs far along it. It only runs between tiles of about the
-  same height, never up or down a wall or a steep step. It burns like a lit pitch ditch: the
-  tall pitch flames near where the pot landed (with the game's ignition flare), smaller ones
-  towards the end of the oil, then it dies down. The fire does not spread past the oil.
+  same height, never up or down a wall or a steep step. It starts where the engineer aimed -
+  also when the pot comes down on the wall he stands on - and burns like a lit pitch ditch: tall
+  flames all over with a random mix of bigger and smaller ones, the game's ignition flare where it
+  started, then it dies down. The fire does not spread past the oil.
 oil_amount: Tiles one pot covers
 oil_amount_tooltip: |
   How many tiles the oil from one pot covers. 41 is what the unmodified game's fire covers in
