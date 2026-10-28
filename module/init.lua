@@ -176,6 +176,9 @@ local OILAT = {
   ENTITIES_PROLOGUE_SIZE = 6,
   OIL_STEP = 3,            -- ticks the oil takes from one tile to the next
   OIL_EVENTS = 1024,       -- queued fires and damage, all pots together
+  OIL_REACH = 5,           -- tiles the game's own oil fire (strength 5) covers by itself
+  OIL_SEED_GAP = 3,        -- beyond that, a further fire every this many tiles along the oil
+  OIL_SEED = 3,            -- of this strength (it spreads 2 tiles each way)
   -- the "can it burn" test, as the siege engines' target search calls it
   CONE_FLAMMABLE = 0x281,
 
@@ -1162,7 +1165,8 @@ local function enableOil()
     QUEUE = core.allocate(16 * 256, true), BLIST = core.allocate(16 * 32, true),
     BDEPTH = core.allocate(4 * 32, true), STAMP = core.allocate(4 * TILES, true),
     QFLAG = core.allocate(256, true), AIMS = core.allocate(16 * 32, true), MIX = mix, PEND = core.allocate(32 * OILAT.OIL_EVENTS, true),
-    PENDMAX = OILAT.OIL_EVENTS, STEP = OILAT.OIL_STEP, TICKS = G.ticks, FIREPARAM = operand(fire, OILAT.FIRE_STRENGTH, "the fire strength"),
+    PENDMAX = OILAT.OIL_EVENTS, STEP = OILAT.OIL_STEP, TICKS = G.ticks,
+    REACH = OILAT.OIL_REACH, SEEDGAP = OILAT.OIL_SEED_GAP, SEED = OILAT.OIL_SEED, FIREPARAM = operand(fire, OILAT.FIRE_STRENGTH, "the fire strength"),
     FLAMMABLE = flammable, BSTATE = G.buildingsState,
     BMAXHP = G.buildings + B.MAX_HEALTH, DAMAGE = damage, FIRE = fire, FIRE_AT = fire + OILAT.FIRE_AT[1],
     CURPLAYER = operand(move, OILAT.MOVE_LOCAL_PLAYER, "the local player"),

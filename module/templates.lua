@@ -1841,31 +1841,19 @@ templates.ignite = [[
   jmp FIRE_AT
 ]]
 
--- oilFire(owner, mx, my, height, strength), cdecl: ignite, and the new fire never spreads by
--- itself (its count of spread directions already at 4) - the oil decides where fire is. It burns,
--- flares at strength 3 and up and dies down like any other fire, the way a pitch ditch's does.
+-- oilFire(owner, mx, my, height, strength), cdecl: the game's own fire, spreading by its rules.
 templates.oilFire = [[
-  push dword [esp + 0x14]
-  push dword [esp + 0x14]
-  push dword [esp + 0x14]
-  push dword [esp + 0x14]
-  push dword [esp + 0x14]
-  call IGNITE
-  add esp, 0x14
-  test eax, eax
-  jle .done
-  imul eax, eax, 0xE8
-  mov word [FIREPARAM + eax + 2], 4
-.done:
-  ret
+  jmp IGNITE
 ]]
 
 -- oilSpread(owner, mx, my, height, strength), cdecl, in place of the fire an oil pot starts where
 -- it lands: the same amount of oil spread over the ground - a flood from the landing tile over
 -- pourable tiles of about the same height, AMOUNT tiles, starting where the pot was aimed (its
--- engineer's last pour near there) or the ground nearest to it. Every tile burns like a pitch
--- ditch: strength 5 at the landing tile, a random 2..5 (mostly 3, the tall flame) elsewhere; none
--- of these fires spreads by itself, so nothing burns past the oil and no building catches. Narrow ground carries the oil far, open ground keeps it a pool.
+-- engineer's last pour near there) or the ground nearest to it. The landing tile gets the game's
+-- own oil fire (strength 5, which spreads REACH tiles by itself - in open ground that is the whole
+-- of the oil, exactly the original pour). Where the oil runs further, along a narrow passage, a
+-- smaller fire of the same kind starts every SEEDGAP tiles beyond that as the oil gets there, and
+-- spreads the game's way too. Narrow ground carries the oil far, open ground keeps it a pool.
 -- With building damage on, a flammable building it touches loses a third of its health at most,
 -- less the further from the landing tile the oil that reaches it is.
 templates.oilSpread = [[
@@ -2084,13 +2072,20 @@ templates.oilSpread = [[
   mov ebx, 5
   test esi, esi
   jz .strength
-  mov eax, [QUEUE + edi]
-  imul eax, eax, 0x45D9F3B
-  add eax, [TICKS]
-  imul eax, eax, 0x2C1B3C6D
-  shr eax, 16
-  and eax, 7
-  movzx ebx, byte [MIX + eax]
+  mov eax, [QUEUE + edi + 12]
+  sub eax, REACH
+  jl .lit
+  xor edx, edx
+  mov ecx, SEEDGAP
+  div ecx
+  test edx, edx
+  jnz .lit
+  mov ebx, [OIL + 0x58]
+  sub ebx, [QUEUE + edi + 12]
+  inc ebx
+  cmp ebx, SEED
+  jle .strength
+  mov ebx, SEED
 .strength:
   mov [OIL + 0x8C], ebx
   mov dword [OIL + 0x74], 0
