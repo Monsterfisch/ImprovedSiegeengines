@@ -131,19 +131,22 @@ oil_aim_tooltip: |
   somewhere. The pot also no longer drifts off the spot it was poured at.
 oil_spread: Oil spreads by its amount
 oil_spread_tooltip: |
-  The oil from one pot runs over the ground it lands on instead of burning in a fixed shape: the
-  same amount of oil covers the same number of tiles. In open ground it is a round pool, in a
-  narrow passage it runs far along it. It only runs between tiles of about the same height, never
-  up or down a wall or a steep step. Each tile it covers burns once and does not spread the fire further.
+  The oil from one pot runs out over the ground it lands on, tile by tile, instead of burning in
+  a fixed shape: the same amount of oil covers the same number of tiles. In open ground it is a
+  round pool, in a narrow passage it runs far along it. It only runs between tiles of about the
+  same height, never up or down a wall or a steep step. The flames are biggest where the pot
+  landed - with the game's ignition flare there, as always - and get smaller towards the end of
+  the oil. The fire does not spread past the oil.
 oil_amount: Tiles one pot covers
 oil_amount_tooltip: |
   How many tiles the oil from one pot covers. 41 is what the unmodified game's fire covers in
   open ground.
 oil_damage: Burning oil damages buildings it touches
 oil_damage_tooltip: |
-  The downside: buildings at the edge of the burning oil do not catch fire, but they are damaged
-  once by the pour - a third of their health when the oil touches them right where the pot
-  landed, less the further along the oil they are. Also your own buildings.
+  The downside: buildings that can burn (wooden houses, workshops, farms, granaries and the like)
+  at the edge of the oil do not catch fire, but take damage once when the oil reaches them - a
+  third of their health right where the pot landed, less the further along the oil they are.
+  Your own too. Towers, gatehouses, keeps and other stone buildings are not damaged.
 
 diagnostics_group: Diagnostics
 diagnostics_group_descr: |

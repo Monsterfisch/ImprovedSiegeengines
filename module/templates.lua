@@ -1570,6 +1570,9 @@ templates.commandEnd = [[
     0x10 generation  0x14 count  0x18 head  0x1C buildings  0x20/0x24 target x/y
     0x28/0x2C engineer x/y  0x30/0x34 target - engineer  0x38 its length^2
     0x40/0x44 ring dx/dy  0x48 ring index  0x4C owner  0x50/0x54 landing x/y  0x58 depth
+    0x5C entry being expanded  0x64 queued events  0x68 last tick  0x6C its step  0x70.. the event being queued: due tick,
+    kind (0 fire, 1 damage), owner, then mx, my, z, strength or tile, x, y, damage
+  PEND: 32 bytes per queued event, the same eight dwords (due 0 = a free slot).
   QUEUE: 16 bytes per tile (tile, x, y, depth). BLIST: 16 bytes per building (id, tile, x, y)
   plus BDEPTH: 4 bytes per building (nearest depth). STAMP: a dword per map tile.
 ]]
@@ -1826,10 +1829,12 @@ templates.ignite = [[
 
 -- oilSpread(owner, mx, my, height, strength), cdecl, in place of the fire an oil pot starts where
 -- it lands: the same amount of oil spread over the ground - a flood from the landing tile over
--- pourable tiles of about the same height, AMOUNT tiles, each lit with strength 1 so it does not
--- spread on. Narrow ground carries it far, open ground keeps it a pool. Buildings it touches do
--- not catch fire; with building damage on they lose a third of their health at most, less the
--- further from the landing tile the oil that reaches them is.
+-- pourable tiles of about the same height, AMOUNT tiles. Each tile burns with a strength (and so a
+-- flame size) that falls from 5 at the landing tile to 1 at the far end, never more than its own
+-- distance to the end, so the fire's own spreading stays inside the oil; tiles next to a building
+-- burn at 1, so it never catches. Narrow ground carries the oil far, open ground keeps it a pool.
+-- With building damage on, a flammable building it touches loses a third of its health at most,
+-- less the further from the landing tile the oil that reaches it is.
 templates.oilSpread = [[
   cmp dword [OIL + 0x04], 0
   je FIRE
@@ -1906,6 +1911,8 @@ templates.oilSpread = [[
   mov esi, [OIL + 0x18]
   cmp esi, [OIL + 0x14]
   jge .burn
+  mov [OIL + 0x5C], esi
+  mov byte [QFLAG + esi], 0
   inc dword [OIL + 0x18]
   shl esi, 4
   add esi, QUEUE
@@ -1960,6 +1967,8 @@ templates.oilSpread = [[
   movsx edx, word [BIDS + eax*2]
   test edx, edx
   jle .dir
+  mov ecx, [OIL + 0x5C]
+  mov byte [QFLAG + ecx], 1
   mov ecx, [OIL + 0x1C]
 .seen:
   dec ecx
@@ -1986,45 +1995,97 @@ templates.oilSpread = [[
   mov [BDEPTH + ecx*4], edx
   jmp .dir
 .burn:
+  mov eax, [OIL + 0x14]
+  dec eax
+  shl eax, 4
+  mov eax, [QUEUE + eax + 12]
+  mov [OIL + 0x58], eax
   xor esi, esi
 .light:
   cmp esi, [OIL + 0x14]
   jge .damage
   mov edi, esi
   shl edi, 4
-  push 1
-  mov eax, [QUEUE + edi]
-  movzx eax, byte [HEIGHT + eax]
-  add eax, 8
-  push eax
-  mov eax, [QUEUE + edi + 8]
-  shl eax, 3
-  add eax, 4
-  push eax
+  mov ebx, 1
+  cmp byte [QFLAG + esi], 0
+  jne .strength
+  mov ecx, [OIL + 0x58]
+  sub ecx, [QUEUE + edi + 12]
+  mov ebx, ecx
+  inc ecx
+  imul ecx, ecx, 5
+  add ecx, [OIL + 0x58]
+  mov eax, ecx
+  mov ecx, [OIL + 0x58]
+  inc ecx
+  xor edx, edx
+  div ecx
+  cmp eax, ebx
+  jge .low
+  mov ebx, eax
+.low:
+  cmp ebx, 5
+  jle .high
+  mov ebx, 5
+.high:
+  cmp ebx, 1
+  jge .strength
+  mov ebx, 1
+.strength:
+  mov [OIL + 0x8C], ebx
+  mov dword [OIL + 0x74], 0
+  mov eax, [OIL + 0x4C]
+  mov [OIL + 0x78], eax
   mov eax, [QUEUE + edi + 4]
   shl eax, 3
   add eax, 4
-  push eax
-  push dword [OIL + 0x4C]
+  mov [OIL + 0x7C], eax
+  mov eax, [QUEUE + edi + 8]
+  shl eax, 3
+  add eax, 4
+  mov [OIL + 0x80], eax
+  mov eax, [QUEUE + edi]
+  movzx eax, byte [HEIGHT + eax]
+  add eax, 8
+  mov [OIL + 0x84], eax
+  mov eax, [QUEUE + edi + 12]
+  imul eax, eax, STEP
+  add eax, [TICKS]
+  inc eax
+  mov [OIL + 0x70], eax
+  test esi, esi
+  jz .now
+  call ENQUEUE
+  test eax, eax
+  jnz .lit
+.now:
+  push dword [OIL + 0x8C]
+  push dword [OIL + 0x84]
+  push dword [OIL + 0x80]
+  push dword [OIL + 0x7C]
+  push dword [OIL + 0x78]
   call IGNITE
   add esp, 0x14
+.lit:
   inc esi
   jmp .light
 .damage:
   cmp dword [OIL + 0x0C], 0
   je .out
-  mov eax, [OIL + 0x14]
-  dec eax
-  shl eax, 4
-  mov eax, [QUEUE + eax + 12]
-  inc eax
-  mov [OIL + 0x58], eax
+  inc dword [OIL + 0x58]
   xor esi, esi
 .hurt:
   cmp esi, [OIL + 0x1C]
   jge .out
   mov edi, esi
   shl edi, 4
+  push dword [BLIST + edi]
+  mov ecx, BSTATE
+  call FLAMMABLE
+  test eax, eax
+  jz .skip
+  cmp eax, 4
+  je .skip
   mov eax, [BLIST + edi]
   imul eax, eax, 0x32C
   movzx eax, word [BMAXHP + eax]
@@ -2040,14 +2101,33 @@ templates.oilSpread = [[
   jnz .hit
   mov eax, 1
 .hit:
+  mov [OIL + 0x8C], eax
+  mov dword [OIL + 0x74], 1
+  mov eax, [OIL + 0x4C]
+  mov [OIL + 0x78], eax
+  mov eax, [BLIST + edi + 4]
+  mov [OIL + 0x7C], eax
+  mov eax, [BLIST + edi + 8]
+  mov [OIL + 0x80], eax
+  mov eax, [BLIST + edi + 12]
+  mov [OIL + 0x84], eax
+  mov eax, [BDEPTH + esi*4]
+  inc eax
+  imul eax, eax, STEP
+  add eax, [TICKS]
+  inc eax
+  mov [OIL + 0x70], eax
+  call ENQUEUE
+  test eax, eax
+  jnz .skip
   push 0
   push 0
-  push dword [OIL + 0x4C]
+  push dword [OIL + 0x78]
   push 0
-  push eax
-  push dword [BLIST + edi + 12]
-  push dword [BLIST + edi + 8]
-  push dword [BLIST + edi + 4]
+  push dword [OIL + 0x8C]
+  push dword [OIL + 0x84]
+  push dword [OIL + 0x80]
+  push dword [OIL + 0x7C]
   mov ecx, TMS
   call DAMAGE
 .skip:
@@ -2059,6 +2139,116 @@ templates.oilSpread = [[
   pop esi
   pop ebx
   ret
+]]
+
+-- enqueue: the event at [OIL+0x70] (8 dwords) into a free PEND slot. eax = 1 queued, 0 full.
+templates.oilEnqueue = [[
+  push esi
+  push edi
+  push ecx
+  xor ecx, ecx
+.find:
+  cmp ecx, PENDMAX
+  jge .full
+  mov edi, ecx
+  shl edi, 5
+  add edi, PEND
+  cmp dword [edi], 0
+  je .put
+  inc ecx
+  jmp .find
+.put:
+  lea esi, [OIL + 0x70]
+  mov ecx, 8
+  cld
+  rep movsd
+  inc dword [OIL + 0x64]
+  mov eax, 1
+  jmp .out
+.full:
+  xor eax, eax
+.out:
+  pop ecx
+  pop edi
+  pop esi
+  ret
+]]
+
+-- updateEntities, once a tick, before the game's own: the queued oil fire and building damage
+-- that is due, so the oil runs outwards tile by tile (all dropped when the tick counter jumps - a
+-- loaded game). Then the game's first six bytes.
+templates.oilTick = [[
+  push eax
+  push edx
+  mov eax, [TICKS]
+  mov edx, eax
+  sub edx, [OIL + 0x68]
+  mov [OIL + 0x68], eax
+  mov [OIL + 0x6C], edx
+  pop edx
+  pop eax
+  cmp dword [OIL + 0x64], 0
+  je .game
+  pushad
+  mov ebx, [TICKS]
+  cmp dword [OIL + 0x6C], 4000
+  jb .run
+  mov edi, PEND
+  mov ecx, PENDMAX * 8
+  xor eax, eax
+  cld
+  rep stosd
+  mov dword [OIL + 0x64], 0
+  jmp .done
+.run:
+  xor esi, esi
+.event:
+  cmp esi, PENDMAX
+  jge .done
+  mov edi, esi
+  shl edi, 5
+  add edi, PEND
+  mov eax, [edi]
+  test eax, eax
+  jz .next
+  cmp eax, ebx
+  ja .next
+  cmp dword [edi + 4], 0
+  jne .damage
+  push dword [edi + 24]
+  push dword [edi + 20]
+  push dword [edi + 16]
+  push dword [edi + 12]
+  push dword [edi + 8]
+  call IGNITE
+  add esp, 0x14
+  jmp .free
+.damage:
+  push 0
+  push 0
+  push dword [edi + 8]
+  push 0
+  push dword [edi + 24]
+  push dword [edi + 20]
+  push dword [edi + 16]
+  push dword [edi + 12]
+  mov ecx, TMS
+  call DAMAGE
+.free:
+  mov dword [edi], 0
+  dec dword [OIL + 0x64]
+.next:
+  inc esi
+  jmp .event
+.done:
+  popad
+.game:
+  push ecx
+  push ebx
+  push ebp
+  push esi
+  mov esi, ecx
+  jmp RESUME
 ]]
 
 return templates

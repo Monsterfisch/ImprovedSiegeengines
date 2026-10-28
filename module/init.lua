@@ -169,6 +169,15 @@ local OILAT = {
   AOB_OIL_POT = "A1 ? ? ? ? ? ? ? ? 00 00 0F B7 88 ? ? ? ? 66 83 F9 0E",
   OIL_POT_FIRE = 0xFC,
   FIRE_AT = { 0x4B, { 0x81, 0xF9, 0x8F, 0x01, 0x00, 0x00 } },   -- past the random nudge
+  FIRE_STRENGTH = { 0x1A0, { 0x66, 0x89, 0x91 } },   -- mov [ecx + fire.strength], dx
+  -- updateEntities, once a tick: the oil flows on from here
+  AOB_ENTITIES = "51 53 55 56 8B F1 8B 0D",
+  ENTITIES_PROLOGUE = { 0x00, { 0x51, 0x53, 0x55, 0x56, 0x8B, 0xF1 } },
+  ENTITIES_PROLOGUE_SIZE = 6,
+  OIL_STEP = 3,            -- ticks the oil takes from one tile to the next
+  OIL_EVENTS = 1024,       -- queued fires and damage, all pots together
+  -- the "can it burn" test, as the siege engines' target search calls it
+  CONE_FLAMMABLE = 0x281,
 
   -- giveMoveCommand: the "impossible location" line (playUnitSpeech(type, 9)) for the local player.
   AOB_MOVE_COMMAND = "83 EC 08 8B 44 24 10 8B 54 24 18",
@@ -1129,9 +1138,13 @@ local function enableOil()
   local fire = callTarget(pot + OILAT.OIL_POT_FIRE, "the oil pot's fire")
   expectBytes(fire + OILAT.FIRE_AT[1], OILAT.FIRE_AT[2], "the fire function")
   local move = scan(OILAT.AOB_MOVE_COMMAND, "the move order")
+  local flammable = callTarget(scan(AOB_CONE, "the siege engines' target search") + OILAT.CONE_FLAMMABLE,
+    "the flammability test")
   local damage = scan(OILAT.AOB_BUILDING_DAMAGE, "the building damage")
 
-  G.oil = core.allocate(0x80, true)
+  local entities = scan(OILAT.AOB_ENTITIES, "the entity update")
+  expectBytes(entities, OILAT.ENTITIES_PROLOGUE[2], "the entity update")
+  G.oil = core.allocate(0x100, true)
   wr32(G.oil + 0x00, O.oilAim and 1 or 0)
   wr32(G.oil + 0x04, O.oilSpread and 1 or 0)
   wr32(G.oil + 0x08, O.oilAmount)
@@ -1145,6 +1158,9 @@ local function enableOil()
   local v = values({ OIL = G.oil, DIRS = dirs, HEIGHT = tms + MAP.HEIGHT, TMS = tms,
     QUEUE = core.allocate(16 * 256, true), BLIST = core.allocate(16 * 32, true),
     BDEPTH = core.allocate(4 * 32, true), STAMP = core.allocate(4 * TILES, true),
+    QFLAG = core.allocate(256, true), PEND = core.allocate(32 * OILAT.OIL_EVENTS, true),
+    PENDMAX = OILAT.OIL_EVENTS, STEP = OILAT.OIL_STEP, TICKS = G.ticks, FIREPARAM = operand(fire, OILAT.FIRE_STRENGTH, "the fire strength"),
+    FLAMMABLE = flammable, BSTATE = G.buildingsState,
     BMAXHP = G.buildings + B.MAX_HEALTH, DAMAGE = damage, FIRE = fire, FIRE_AT = fire + OILAT.FIRE_AT[1],
     CURPLAYER = operand(move, OILAT.MOVE_LOCAL_PLAYER, "the local player"),
     SFX = operand(move, OILAT.MOVE_SFX, "the sound system"),
@@ -1154,6 +1170,7 @@ local function enableOil()
   v.POURABLE = assemble(templates.pourable, v)
   v.RINGSTEP = assemble(templates.ringStep, v)
   v.IGNITE = assemble(templates.ignite, v)
+  v.ENQUEUE = assemble(templates.oilEnqueue, v)
   v.OILAIM = assemble(templates.oilAim, v)
   local spread = assemble(templates.oilSpread, v)
   v.RESUME = pour + OILAT.ENGINEER_POUR_SIZE
@@ -1161,6 +1178,10 @@ local function enableOil()
   v.RESUME = auto + OILAT.AUTO_OIL_TAKE[1] + OILAT.AUTO_OIL_TAKE_SIZE
   local take = assemble(templates.oilAuto, v)
 
+  v.RESUME = entities + OILAT.ENTITIES_PROLOGUE_SIZE
+  local tick = assemble(templates.oilTick, v)
+
+  patch(entities, jumpCode(entities, tick, OILAT.ENTITIES_PROLOGUE_SIZE), OILAT.ENTITIES_PROLOGUE_SIZE)
   patch(pour, jumpCode(pour, throw, OILAT.ENGINEER_POUR_SIZE), OILAT.ENGINEER_POUR_SIZE)
   patch(auto + OILAT.AUTO_OIL_TAKE[1], jumpCode(auto + OILAT.AUTO_OIL_TAKE[1], take, OILAT.AUTO_OIL_TAKE_SIZE),
     OILAT.AUTO_OIL_TAKE_SIZE)

@@ -134,6 +134,10 @@ def check(name, e):
     expect(ao + SITE['AUTO_OIL_FAIL'][0], SITE['AUTO_OIL_FAIL'][1], 'AUTO_OIL_FAIL')
     fire = call(scan('AOB_OIL_POT') + NUM['OIL_POT_FIRE'], 'oil pot fire')
     expect(fire + SITE['FIRE_AT'][0], SITE['FIRE_AT'][1], 'FIRE_AT')
+    expect(fire + SITE['FIRE_STRENGTH'][0], SITE['FIRE_STRENGTH'][1], 'FIRE_STRENGTH')
+    fl = call(scan('AOB_CONE') + NUM['CONE_FLAMMABLE'], 'flammability')
+    expect(scan('AOB_ENTITIES'), SITE['ENTITIES_PROLOGUE'][1], 'ENTITIES_PROLOGUE')
+    print('         flammability %X fire strength at %X' % (fl, e.u32(fire + SITE['FIRE_STRENGTH'][0] + 3)))
     mv = scan('AOB_MOVE_COMMAND')
     for k in ('MOVE_LOCAL_PLAYER', 'MOVE_SFX'):
         expect(mv + SITE[k][0], SITE[k][1], k)
