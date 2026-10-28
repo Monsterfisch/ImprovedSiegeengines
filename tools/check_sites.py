@@ -13,14 +13,14 @@ EXES = {'vanilla': os.path.join(GAME, 'Stronghold Crusader.exe'),
         'extreme': os.path.join(GAME, 'Stronghold_Crusader_Extreme.exe')}
 
 src = open(os.path.join(HERE, 'module', 'init.lua'), encoding='utf-8').read()
-AOB = dict(re.findall(r'local (AOB_\w+) = "([^"]+)"', src))
+AOB = dict(re.findall(r'(?:local |^\s+)(AOB_\w+) = "([^"]+)"', src, re.M))
 # patterns written over two lines: "..." .. "..."
 for k, a1, a2 in re.findall(r'local (AOB_\w+) = "([^"]+)"\n\s*\.\. "([^"]+)"', src):
     AOB[k] = a1 + a2
-NUM = {k: int(v, 16) for k, v in re.findall(r'local (\w+) = (-?0x[0-9A-Fa-f]+)\b', src)}
+NUM = {k: int(v, 16) for k, v in re.findall(r'(?:local |^\s+)(\w+) = (-?0x[0-9A-Fa-f]+)\b', src, re.M)}
 NUM.update({k: int(v) for k, v in re.findall(r'local (\w+) = (-?\d+)\n', src)})
 SITE = {}
-for k, off, bytes_ in re.findall(r'local (\w+) = \{ (0x[0-9A-F]+), \{ ([^}]*) \} \}', src):
+for k, off, bytes_ in re.findall(r'(?:local |^\s+)(\w+) = \{ (0x[0-9A-F]+), \{ ([^}]*) \} \}', src, re.M):
     SITE[k] = (int(off, 16), [int(b, 16) for b in bytes_.split(',')])
 BYTES = {k: [int(b, 16) for b in v.split(',')] for k, v in
          re.findall(r'local (\w+) = \{ (0x[0-9A-F]{2}(?:, 0x[0-9A-F]{2})+) \}', src)}
@@ -126,6 +126,20 @@ def check(name, e):
     call(order + NUM['INSTRUCTION_DESELECT'], 'deselect'); call(order + NUM['INSTRUCTION_UNSELECT'], 'unselect')
     required = call(scan('AOB_UPDATE_ENGINEER') + NUM['ENGINEER_REQUIRED'], 'engineer count')
     print('         entrance test %X engineer count %X' % (entrance, required))
+    eng = scan('AOB_UPDATE_ENGINEER')
+    expect(eng + SITE['ENGINEER_POUR'][0], SITE['ENGINEER_POUR'][1], 'ENGINEER_POUR')
+    expect(eng + SITE['ENGINEER_EPILOGUE'][0], SITE['ENGINEER_EPILOGUE'][1], 'ENGINEER_EPILOGUE')
+    ao = scan('AOB_AUTO_OIL')
+    expect(ao + SITE['AUTO_OIL_TAKE'][0], SITE['AUTO_OIL_TAKE'][1], 'AUTO_OIL_TAKE')
+    expect(ao + SITE['AUTO_OIL_FAIL'][0], SITE['AUTO_OIL_FAIL'][1], 'AUTO_OIL_FAIL')
+    fire = call(scan('AOB_OIL_POT') + NUM['OIL_POT_FIRE'], 'oil pot fire')
+    expect(fire + SITE['FIRE_AT'][0], SITE['FIRE_AT'][1], 'FIRE_AT')
+    mv = scan('AOB_MOVE_COMMAND')
+    for k in ('MOVE_LOCAL_PLAYER', 'MOVE_SFX'):
+        expect(mv + SITE[k][0], SITE[k][1], k)
+    speech = call(mv + NUM['MOVE_SPEECH'], 'speech')
+    dmg = scan('AOB_BUILDING_DAMAGE')
+    print('         oil: fire %X speech %X damage %X' % (fire, speech, dmg))
     print('%-8s harass %X tents %X/%X spots %X found %X location %X command %X freeTile %X' %
           (name, harass, angle, suit, find, found, location, cmd, free))
     print('         tribes %X stride %X units %X maxUnits %d ranges %s teams %X ticks %X flags %X' %

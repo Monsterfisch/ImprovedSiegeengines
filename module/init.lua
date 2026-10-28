@@ -46,6 +46,7 @@ local DEFAULTS = {
   tents = { free = true, range = true, variation = 10, engineers = true },
   towers = { dock = true, orders = true },
   shields = { enabled = true },
+  oil = { aim = true, spread = true, amount = 41, damage = true },
   diagnostics = { log = false },
 }
 
@@ -151,6 +152,35 @@ local INSTRUCTION_UNSELECT = 0x1DDA        -- call clearOrDeselectUnitFromSelect
 local AOB_UPDATE_ENGINEER = "51 8B 0D ? ? ? ? 8B C1 69 C0 90 04 00 00 83 3D ? ? ? ? 00"
 local ENGINEER_REQUIRED = 0x10FD           -- call getRequiredEngineerCountForSiegeBuilding
 
+-- The oil engineers' code sites, in one table (the main chunk is near Lua's 200 locals).
+local OILAT = {
+  -- UpdateEngineer, pouring oil (state 0xA, the frame the pot is emptied) and the end of it.
+  ENGINEER_POUR = { 0x19B0, { 0x66, 0x89, 0xB0 } },      -- mov [eax + resourceToDeposit], si
+  ENGINEER_POUR_SIZE = 7,
+  ENGINEER_EPILOGUE = { 0x1A30, { 0x5F, 0x5E, 0x5D, 0x5B, 0x59, 0xC3 } },
+
+  -- ifNecessaryThrowOilAutomatically: taking an enemy as the target of an automatic pour.
+  AOB_AUTO_OIL = "83 EC 0C 56 8B 74 24 14 69 F6 90 04 00 00",
+  AUTO_OIL_TAKE = { 0x229, { 0x66, 0xC7, 0x86 } },      -- mov word [esi + targeting], 0x14
+  AUTO_OIL_TAKE_SIZE = 9,
+  AUTO_OIL_FAIL = { 0xB7, { 0x5B, 0x5F, 0x33, 0xC0 } },  -- pop ebx / pop edi / xor eax, eax
+
+  -- The oil pot's entity: where it lands it calls the fire function (owner, mx, my, z, 5).
+  AOB_OIL_POT = "A1 ? ? ? ? ? ? ? ? 00 00 0F B7 88 ? ? ? ? 66 83 F9 0E",
+  OIL_POT_FIRE = 0xFC,
+  FIRE_AT = { 0x4B, { 0x81, 0xF9, 0x8F, 0x01, 0x00, 0x00 } },   -- past the random nudge
+
+  -- giveMoveCommand: the "impossible location" line (playUnitSpeech(type, 9)) for the local player.
+  AOB_MOVE_COMMAND = "83 EC 08 8B 44 24 10 8B 54 24 18",
+  MOVE_LOCAL_PLAYER = { 0x16C, { 0x3B, 0x15 } },
+  MOVE_SFX = { 0x22B, { 0xB9 } },
+  MOVE_SPEECH = 0x230,
+  SPEECH_IMPOSSIBLE = 9,
+
+  -- TileMapState::processDamageToBuilding(tile, x, y, damage, 0, player, 0, unit)
+  AOB_BUILDING_DAMAGE = "83 EC 0C 53 55 56 8B 74 24 30",
+}
+
 -- UpdateCatapult: its call of setDestinationForUnit. Several modules hook that function's own
 -- first bytes, so it is found through a call (and called through their hooks).
 local AOB_UPDATE_CATAPULT = "83 EC 74 53 8B 1D ? ? ? ? 55 56"
@@ -184,9 +214,10 @@ local P = { STRIDE = 0x39F4, HAS_KEEP = 0x94, KEEP_TILE = 0x1E0, LORD = 0x21F8, 
   AI_TYPE = 0x2300, ATTACKED = 0x2BD8,
   TRIBE_IDS = 0x310C, TRIBE_UIDS = 0x329C }
 local T = { OWNER = 0x2C, UID = 0x34, STATE = 0x40, LEADER = 0x5A }
-local MAP = { FLAGS = 0x165160, WALL_OWNER = 0x2C6E50, AREA = 0x363ED0, Y_OF_TILE = 0x742B90,
+local MAP = { HEIGHT = 0x29FA30, FLAGS = 0x165160, WALL_OWNER = 0x2C6E50, AREA = 0x363ED0, Y_OF_TILE = 0x742B90,
   ROWS = 0x8A40F8, VALID = 0x71BA90, BUILDINGS = 0x2029B0, UNITS = 0x23D7E0 }
 local B = { STRIDE = 0x32C, STATE = 0xD0, TYPE = 0xD2, OWNER = 0xD6, UID = 0xD8, X = 0xEE, Y = 0xF0,
+  MAX_HEALTH = 0x10E,
   ENTRY_X = 0xFE, ENTRY_Y = 0x100, WORKERS = 0x19A, STATE_OFFSET = 0x14 }
 
 local TILES = 0x13A10
@@ -1084,6 +1115,58 @@ local function enableWalking()
   end
 end
 
+local function enableOil()
+  local engineer = scan(AOB_UPDATE_ENGINEER, "the engineer update")
+  local pour = engineer + OILAT.ENGINEER_POUR[1]
+  local deposit = operand(engineer, OILAT.ENGINEER_POUR, "the engineers' oil pots")
+  if deposit ~= G.units + U.DEPOSIT then error("the engineers' oil pots are not where expected", 0) end
+  expectBytes(engineer + OILAT.ENGINEER_EPILOGUE[1], OILAT.ENGINEER_EPILOGUE[2], "the end of the engineer update")
+  local auto = scan(OILAT.AOB_AUTO_OIL, "the engineers' automatic oil")
+  local targeting = operand(auto, OILAT.AUTO_OIL_TAKE, "the engineers' automatic oil")
+  if targeting ~= G.units + U.TARGETING then error("the automatic oil target is not where expected", 0) end
+  expectBytes(auto + OILAT.AUTO_OIL_FAIL[1], OILAT.AUTO_OIL_FAIL[2], "the engineers' automatic oil")
+  local pot = scan(OILAT.AOB_OIL_POT, "the oil pot")
+  local fire = callTarget(pot + OILAT.OIL_POT_FIRE, "the oil pot's fire")
+  expectBytes(fire + OILAT.FIRE_AT[1], OILAT.FIRE_AT[2], "the fire function")
+  local move = scan(OILAT.AOB_MOVE_COMMAND, "the move order")
+  local damage = scan(OILAT.AOB_BUILDING_DAMAGE, "the building damage")
+
+  G.oil = core.allocate(0x80, true)
+  wr32(G.oil + 0x00, O.oilAim and 1 or 0)
+  wr32(G.oil + 0x04, O.oilSpread and 1 or 0)
+  wr32(G.oil + 0x08, O.oilAmount)
+  wr32(G.oil + 0x0C, O.oilDamage and 1 or 0)
+  local dirs = core.allocate(32, true)
+  for i, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
+    wr32(dirs + 8 * (i - 1), d[1])
+    wr32(dirs + 8 * (i - 1) + 4, d[2])
+  end
+  local tms = G.flags - MAP.FLAGS
+  local v = values({ OIL = G.oil, DIRS = dirs, HEIGHT = tms + MAP.HEIGHT, TMS = tms,
+    QUEUE = core.allocate(16 * 256, true), BLIST = core.allocate(16 * 32, true),
+    BDEPTH = core.allocate(4 * 32, true), STAMP = core.allocate(4 * TILES, true),
+    BMAXHP = G.buildings + B.MAX_HEALTH, DAMAGE = damage, FIRE = fire, FIRE_AT = fire + OILAT.FIRE_AT[1],
+    CURPLAYER = operand(move, OILAT.MOVE_LOCAL_PLAYER, "the local player"),
+    SFX = operand(move, OILAT.MOVE_SFX, "the sound system"),
+    SPEECH = callTarget(move + OILAT.MOVE_SPEECH, "the unit speech"),
+    DEPOSIT = deposit, TARGETING = targeting, UNITTILE = G.units + U.TILE,
+    EPILOGUE = engineer + OILAT.ENGINEER_EPILOGUE[1], FAIL = auto + OILAT.AUTO_OIL_FAIL[1] })
+  v.POURABLE = assemble(templates.pourable, v)
+  v.RINGSTEP = assemble(templates.ringStep, v)
+  v.IGNITE = assemble(templates.ignite, v)
+  v.OILAIM = assemble(templates.oilAim, v)
+  local spread = assemble(templates.oilSpread, v)
+  v.RESUME = pour + OILAT.ENGINEER_POUR_SIZE
+  local throw = assemble(templates.oilThrow, v)
+  v.RESUME = auto + OILAT.AUTO_OIL_TAKE[1] + OILAT.AUTO_OIL_TAKE_SIZE
+  local take = assemble(templates.oilAuto, v)
+
+  patch(pour, jumpCode(pour, throw, OILAT.ENGINEER_POUR_SIZE), OILAT.ENGINEER_POUR_SIZE)
+  patch(auto + OILAT.AUTO_OIL_TAKE[1], jumpCode(auto + OILAT.AUTO_OIL_TAKE[1], take, OILAT.AUTO_OIL_TAKE_SIZE),
+    OILAT.AUTO_OIL_TAKE_SIZE)
+  patch(pot + OILAT.OIL_POT_FIRE, { 0xE8, core.itob(core.getRelativeAddress(pot + OILAT.OIL_POT_FIRE, spread, -5)) }, 5)
+end
+
 local function try(purpose, fn)
   local ok, message = pcall(fn)
   if not ok then
@@ -1159,8 +1242,12 @@ return {
     O.shields = setting(config, "shields", "enabled")
     O.engineers = setting(config, "tents", "engineers")
     O.log = setting(config, "diagnostics", "log")
+    O.oilAim = setting(config, "oil", "aim")
+    O.oilSpread = setting(config, "oil", "spread")
+    O.oilAmount = number(config, "oil", "amount", 5, 200)
+    O.oilDamage = setting(config, "oil", "damage")
     if not (O.catapults or O.freeSpots or O.tentRange or O.dock or O.towerOrders or O.shields
-        or O.engineers or O.standing or O.scatter < 100) then
+        or O.engineers or O.standing or O.scatter < 100 or O.oilAim or O.oilSpread) then
       return
     end
     if not try("the whole module", readCommon) then return end
@@ -1173,6 +1260,7 @@ return {
     state.standing = O.standing and try("siege engines dropping destroyed targets", enableStandingTargets)
     state.tents = (O.freeSpots or O.tentRange) and try("siege tent placement", enableTents)
     state.dock = O.dock and try("siege tower docking", enableDocking)
+    state.oil = (O.oilAim or O.oilSpread) and try("the oil engineers", enableOil)
     state.commands = (O.towerOrders or O.shields or O.engineers)
       and try("shield, siege tower and engineer orders", enableCommands)
 
@@ -1188,6 +1276,8 @@ return {
     state.engineers = state.commands and O.engineers
 
     local function word(on, ready) return not on and "off" or ready and "on" or "unavailable" end
+    log(INFO, string.format("%s: oil aim %s, oil spread %s (%d tiles, building damage %s)", MODULE_NAME,
+      word(O.oilAim, state.oil), word(O.oilSpread, state.oil), O.oilAmount, O.oilDamage and "on" or "off"))
     log(INFO, string.format("%s: catapults %s, shooting on the way %s, other enemies %s, scatter %s, "
       .. "destroyed targets dropped %s, "
       .. "tent spots %s, tents by range %s "
@@ -1208,6 +1298,9 @@ return {
       wr32(G.data + 0x1F0, 0)
     end
     O.shields, O.towerOrders, O.engineers = false, false, false
+    if G.oil ~= nil then
+      for offset = 0x00, 0x0C, 4 do wr32(G.oil + offset, 0) end
+    end
     for index = #patched, 1, -1 do
       core.writeCodeBytes(patched[index].address, patched[index].bytes)
     end

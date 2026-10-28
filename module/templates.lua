@@ -1561,4 +1561,504 @@ templates.commandEnd = [[
   ret 4
 ]]
 
+---------------------------------------------------------------------------------------
+-- 5. Oil engineers
+---------------------------------------------------------------------------------------
+--[[
+  OIL is the oil block:
+    0x00 aim on  0x04 spread on  0x08 amount (tiles)  0x0C building damage on
+    0x10 generation  0x14 count  0x18 head  0x1C buildings  0x20/0x24 target x/y
+    0x28/0x2C engineer x/y  0x30/0x34 target - engineer  0x38 its length^2
+    0x40/0x44 ring dx/dy  0x48 ring index  0x4C owner  0x50/0x54 landing x/y  0x58 depth
+  QUEUE: 16 bytes per tile (tile, x, y, depth). BLIST: 16 bytes per building (id, tile, x, y)
+  plus BDEPTH: 4 bytes per building (nearest depth). STAMP: a dword per map tile.
+]]
+
+-- pourable: eax = tile -> eax = 1 when burning oil can lie there (no wall, stairs, tower or
+-- other obstacle, no building but the few the game's fire ignores). Keeps every other register.
+templates.pourable = [[
+  push edx
+  mov edx, [FLAGS + eax*4]
+  test edx, 0x10300131
+  jnz .no
+  movsx edx, word [BIDS + eax*2]
+  test edx, edx
+  jz .yes
+  imul edx, edx, 0x32C
+  movzx edx, word [BTYPE + edx]
+  cmp edx, 0x32
+  je .yes
+  cmp edx, 0x43
+  je .yes
+  cmp edx, 0x55
+  je .yes
+.no:
+  xor eax, eax
+  pop edx
+  ret
+.yes:
+  mov eax, 1
+  pop edx
+  ret
+]]
+
+-- ringStep: [OIL+0x48] = index on ring ebx (0 .. 8r-1) -> [OIL+0x40/0x44] = dx, dy (top, right,
+-- bottom, left edge). Keeps ebx, esi, edi, ebp.
+templates.ringStep = [[
+  push ecx
+  push edx
+  mov eax, [OIL + 0x48]
+  lea ecx, [ebx + ebx]
+  xor edx, edx
+  div ecx
+  sub edx, ebx
+  test eax, eax
+  jnz .right
+  mov [OIL + 0x40], edx
+  neg ebx
+  mov [OIL + 0x44], ebx
+  neg ebx
+  jmp .done
+.right:
+  cmp eax, 1
+  jne .bottom
+  mov [OIL + 0x40], ebx
+  mov [OIL + 0x44], edx
+  jmp .done
+.bottom:
+  neg edx
+  cmp eax, 2
+  jne .left
+  mov [OIL + 0x40], edx
+  mov [OIL + 0x44], ebx
+  jmp .done
+.left:
+  neg ebx
+  mov [OIL + 0x40], ebx
+  neg ebx
+  mov [OIL + 0x44], edx
+.done:
+  pop edx
+  pop ecx
+  ret
+]]
+
+-- oilAim(unit), stdcall, the moment an engineer pours: eax = 1 pour, 0 not. Its target tile
+-- must be pourable. An automatic pour (targeting 0x19) is simply not made otherwise; a manual
+-- one is moved to the nearest pourable tile up to 4 tiles away that lies no more than 45 degrees
+-- off the engineer's line to the target, or refused with the "impossible location" line. A
+-- refused engineer keeps his pot (state 0xB, holding it).
+templates.oilAim = [[
+  push ebx
+  push esi
+  push edi
+  push ebp
+  mov esi, [esp + 0x14]
+  imul esi, esi, 0x490
+  add esi, UNITS
+  movsx eax, word [esi + 0x3E8]
+  mov [OIL + 0x20], eax
+  movsx eax, word [esi + 0x3EA]
+  mov [OIL + 0x24], eax
+  movsx eax, word [esi + 0xC4]
+  mov [OIL + 0x28], eax
+  movsx eax, word [esi + 0xC6]
+  mov [OIL + 0x2C], eax
+  mov eax, [OIL + 0x20]
+  mov edx, [OIL + 0x24]
+  call TILEAT
+  test eax, eax
+  jl .search
+  call POURABLE
+  test eax, eax
+  jnz .ok
+.search:
+  cmp word [esi + 0x39C], 0x19
+  je .quiet
+  mov eax, [OIL + 0x20]
+  sub eax, [OIL + 0x28]
+  mov [OIL + 0x30], eax
+  imul eax, eax
+  mov ecx, [OIL + 0x24]
+  sub ecx, [OIL + 0x2C]
+  mov [OIL + 0x34], ecx
+  imul ecx, ecx
+  add eax, ecx
+  mov [OIL + 0x38], eax
+  cmp eax, 1600
+  jg .refuse
+  mov ebx, 1
+.ring:
+  cmp ebx, 4
+  jg .refuse
+  mov dword [OIL + 0x48], 0
+.step:
+  lea eax, [ebx*8]
+  cmp [OIL + 0x48], eax
+  jge .nextRing
+  call RINGSTEP
+  mov edi, [OIL + 0x20]
+  add edi, [OIL + 0x40]
+  mov ebp, [OIL + 0x24]
+  add ebp, [OIL + 0x44]
+  mov eax, edi
+  mov edx, ebp
+  call TILEAT
+  test eax, eax
+  jl .next
+  call POURABLE
+  test eax, eax
+  jz .next
+  mov eax, edi
+  sub eax, [OIL + 0x28]
+  mov ecx, ebp
+  sub ecx, [OIL + 0x2C]
+  mov edx, eax
+  imul edx, [OIL + 0x30]
+  push ecx
+  imul ecx, [OIL + 0x34]
+  add edx, ecx
+  pop ecx
+  test edx, edx
+  jle .next
+  imul eax, eax
+  imul ecx, ecx
+  add eax, ecx
+  imul edx, edx
+  add edx, edx
+  mov ecx, eax
+  imul ecx, [OIL + 0x38]
+  cmp edx, ecx
+  jl .next
+  shl eax, 2
+  mov ecx, [OIL + 0x38]
+  lea ecx, [ecx + ecx*4 + 64]
+  cmp eax, ecx
+  jg .next
+  mov [esi + 0x3E8], di
+  mov [esi + 0x3EA], bp
+  jmp .ok
+.next:
+  inc dword [OIL + 0x48]
+  jmp .step
+.nextRing:
+  inc ebx
+  jmp .ring
+.refuse:
+  movsx eax, word [esi + 0x96]
+  cmp eax, [CURPLAYER]
+  jne .quiet
+  push 9
+  push 30
+  mov ecx, SFX
+  call SPEECH
+.quiet:
+  mov word [esi + 0x2C0], 0xB
+  mov word [esi + 0x39C], 0
+  mov dword [esi + 0x2B0], 0
+  xor eax, eax
+  jmp .out
+.ok:
+  mov eax, 1
+.out:
+  pop ebp
+  pop edi
+  pop esi
+  pop ebx
+  ret 4
+]]
+
+-- UpdateEngineer, state 0xA at the pouring frame, where the game marks the pot used: eax =
+-- unit * 0x490, edx = the unit, esi = 0. Refused: straight to the function's epilogue.
+templates.oilThrow = [[
+  cmp dword [OIL + 0x00], 0
+  je .pour
+  push eax
+  push edx
+  push edx
+  call OILAIM
+  test eax, eax
+  pop edx
+  pop eax
+  jz .refused
+.pour:
+  mov [eax + DEPOSIT], si
+  jmp RESUME
+.refused:
+  jmp EPILOGUE
+]]
+
+-- ifNecessaryThrowOilAutomatically, about to take the enemy at edx (* 0x490) as its target:
+-- only when it stands on pourable ground.
+templates.oilAuto = [[
+  cmp dword [OIL + 0x00], 0
+  je .take
+  mov eax, [edx + UNITTILE]
+  call POURABLE
+  test eax, eax
+  jz FAIL
+.take:
+  mov word [esi + TARGETING], 0x14
+  jmp RESUME
+]]
+
+-- ignite(owner, mx, my, height, strength), cdecl: the game's own fire at exactly that spot - its
+-- fire function past the random nudge it gives every hit.
+templates.ignite = [[
+  push ebp
+  push esi
+  push edi
+  mov edi, [esp + 0x14]
+  mov ebp, [esp + 0x18]
+  mov eax, edi
+  cdq
+  and edx, 7
+  add eax, edx
+  mov ecx, eax
+  mov eax, ebp
+  cdq
+  and edx, 7
+  add eax, edx
+  sar ecx, 3
+  sar eax, 3
+  jmp FIRE_AT
+]]
+
+-- oilSpread(owner, mx, my, height, strength), cdecl, in place of the fire an oil pot starts where
+-- it lands: the same amount of oil spread over the ground - a flood from the landing tile over
+-- pourable tiles of about the same height, AMOUNT tiles, each lit with strength 1 so it does not
+-- spread on. Narrow ground carries it far, open ground keeps it a pool. Buildings it touches do
+-- not catch fire; with building damage on they lose a third of their health at most, less the
+-- further from the landing tile the oil that reaches them is.
+templates.oilSpread = [[
+  cmp dword [OIL + 0x04], 0
+  je FIRE
+  push ebx
+  push esi
+  push edi
+  push ebp
+  mov eax, [esp + 0x14]
+  mov [OIL + 0x4C], eax
+  mov eax, [esp + 0x18]
+  sar eax, 3
+  mov [OIL + 0x50], eax
+  mov eax, [esp + 0x1C]
+  sar eax, 3
+  mov [OIL + 0x54], eax
+  mov eax, [OIL + 0x50]
+  mov edx, [OIL + 0x54]
+  call TILEAT
+  test eax, eax
+  jl .land
+  call POURABLE
+  test eax, eax
+  jnz .landed
+.land:
+  mov ebx, 1
+.lring:
+  cmp ebx, 2
+  jg .out
+  mov dword [OIL + 0x48], 0
+.lstep:
+  lea eax, [ebx*8]
+  cmp [OIL + 0x48], eax
+  jge .lnext
+  call RINGSTEP
+  mov eax, [OIL + 0x50]
+  add eax, [OIL + 0x40]
+  mov edx, [OIL + 0x54]
+  add edx, [OIL + 0x44]
+  call TILEAT
+  test eax, eax
+  jl .lskip
+  call POURABLE
+  test eax, eax
+  jz .lskip
+  mov eax, [OIL + 0x40]
+  add [OIL + 0x50], eax
+  mov eax, [OIL + 0x44]
+  add [OIL + 0x54], eax
+  jmp .landed
+.lskip:
+  inc dword [OIL + 0x48]
+  jmp .lstep
+.lnext:
+  inc ebx
+  jmp .lring
+.landed:
+  inc dword [OIL + 0x10]
+  mov dword [OIL + 0x14], 0
+  mov dword [OIL + 0x18], 0
+  mov dword [OIL + 0x1C], 0
+  mov eax, [OIL + 0x50]
+  mov edx, [OIL + 0x54]
+  call TILEAT
+  mov ecx, [OIL + 0x10]
+  mov [STAMP + eax*4], ecx
+  mov [QUEUE], eax
+  mov ecx, [OIL + 0x50]
+  mov [QUEUE + 4], ecx
+  mov ecx, [OIL + 0x54]
+  mov [QUEUE + 8], ecx
+  mov dword [QUEUE + 12], 0
+  mov dword [OIL + 0x14], 1
+.pop:
+  mov esi, [OIL + 0x18]
+  cmp esi, [OIL + 0x14]
+  jge .burn
+  inc dword [OIL + 0x18]
+  shl esi, 4
+  add esi, QUEUE
+  xor ebx, ebx
+.dir:
+  cmp ebx, 4
+  jge .pop
+  mov edi, [esi + 4]
+  add edi, [DIRS + ebx*8]
+  mov ebp, [esi + 8]
+  add ebp, [DIRS + ebx*8 + 4]
+  inc ebx
+  mov eax, edi
+  mov edx, ebp
+  call TILEAT
+  test eax, eax
+  jl .dir
+  mov ecx, [OIL + 0x10]
+  cmp [STAMP + eax*4], ecx
+  je .dir
+  mov edx, [esi]
+  movzx ecx, byte [HEIGHT + edx]
+  movzx edx, byte [HEIGHT + eax]
+  sub ecx, edx
+  jns .abs
+  neg ecx
+.abs:
+  cmp ecx, 0x19
+  jge .dir
+  push eax
+  call POURABLE
+  test eax, eax
+  pop eax
+  jz .wall
+  mov ecx, [OIL + 0x14]
+  cmp ecx, [OIL + 0x08]
+  jge .dir
+  mov edx, [OIL + 0x10]
+  mov [STAMP + eax*4], edx
+  inc dword [OIL + 0x14]
+  shl ecx, 4
+  mov [QUEUE + ecx], eax
+  mov [QUEUE + ecx + 4], edi
+  mov [QUEUE + ecx + 8], ebp
+  mov edx, [esi + 12]
+  inc edx
+  mov [QUEUE + ecx + 12], edx
+  jmp .dir
+.wall:
+  mov edx, [OIL + 0x10]
+  mov [STAMP + eax*4], edx
+  movsx edx, word [BIDS + eax*2]
+  test edx, edx
+  jle .dir
+  mov ecx, [OIL + 0x1C]
+.seen:
+  dec ecx
+  js .new
+  push ecx
+  shl ecx, 4
+  cmp [BLIST + ecx], edx
+  pop ecx
+  jne .seen
+  jmp .dir
+.new:
+  mov ecx, [OIL + 0x1C]
+  cmp ecx, 32
+  jge .dir
+  inc dword [OIL + 0x1C]
+  push ecx
+  shl ecx, 4
+  mov [BLIST + ecx], edx
+  mov [BLIST + ecx + 4], eax
+  mov [BLIST + ecx + 8], edi
+  mov [BLIST + ecx + 12], ebp
+  pop ecx
+  mov edx, [esi + 12]
+  mov [BDEPTH + ecx*4], edx
+  jmp .dir
+.burn:
+  xor esi, esi
+.light:
+  cmp esi, [OIL + 0x14]
+  jge .damage
+  mov edi, esi
+  shl edi, 4
+  push 1
+  mov eax, [QUEUE + edi]
+  movzx eax, byte [HEIGHT + eax]
+  add eax, 8
+  push eax
+  mov eax, [QUEUE + edi + 8]
+  shl eax, 3
+  add eax, 4
+  push eax
+  mov eax, [QUEUE + edi + 4]
+  shl eax, 3
+  add eax, 4
+  push eax
+  push dword [OIL + 0x4C]
+  call IGNITE
+  add esp, 0x14
+  inc esi
+  jmp .light
+.damage:
+  cmp dword [OIL + 0x0C], 0
+  je .out
+  mov eax, [OIL + 0x14]
+  dec eax
+  shl eax, 4
+  mov eax, [QUEUE + eax + 12]
+  inc eax
+  mov [OIL + 0x58], eax
+  xor esi, esi
+.hurt:
+  cmp esi, [OIL + 0x1C]
+  jge .out
+  mov edi, esi
+  shl edi, 4
+  mov eax, [BLIST + edi]
+  imul eax, eax, 0x32C
+  movzx eax, word [BMAXHP + eax]
+  mov ecx, [OIL + 0x58]
+  sub ecx, [BDEPTH + esi*4]
+  jle .skip
+  imul eax, ecx
+  mov ecx, [OIL + 0x58]
+  imul ecx, ecx, 3
+  xor edx, edx
+  div ecx
+  test eax, eax
+  jnz .hit
+  mov eax, 1
+.hit:
+  push 0
+  push 0
+  push dword [OIL + 0x4C]
+  push 0
+  push eax
+  push dword [BLIST + edi + 12]
+  push dword [BLIST + edi + 8]
+  push dword [BLIST + edi + 4]
+  mov ecx, TMS
+  call DAMAGE
+.skip:
+  inc esi
+  jmp .hurt
+.out:
+  pop ebp
+  pop edi
+  pop esi
+  pop ebx
+  ret
+]]
+
 return templates

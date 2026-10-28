@@ -115,6 +115,36 @@ shields_enabled_tooltip: |
   fewest are, a shield stays where it is as long as that place keeps no more than its share).
   With nobody at all a shield stops where it is and waits.
 
+oil_group: Oil engineers
+oil_group_descr: |
+  For everyone's engineers with oil pots, the player's too. In the unmodified game the pot is
+  thrown at a spot and nudged a little at random; if it comes down on a wall, stairs, a tower or
+  another obstacle the oil does nothing at all, and the engineer walks all the way back to refill
+  for nothing. And the fire is always the same diamond around the spot, whatever the ground.
+oil_aim: Pour oil on ground only
+oil_aim_tooltip: |
+  An engineer pours only where burning oil can lie: open ground, not a wall, stairs, a tower or
+  another building. On their own engineers only pour on an enemy who stands on
+  such ground. Sent by you at a spot that is not, the engineer pours on the nearest ground up to 4
+  tiles from it that is no more than 45 degrees off his line to your spot. If there is none, he
+  keeps his oil and says "impossible location", the same line units say when they cannot go
+  somewhere. The pot also no longer drifts off the spot it was poured at.
+oil_spread: Oil spreads by its amount
+oil_spread_tooltip: |
+  The oil from one pot runs over the ground it lands on instead of burning in a fixed shape: the
+  same amount of oil covers the same number of tiles. In open ground it is a round pool, in a
+  narrow passage it runs far along it. It only runs between tiles of about the same height, never
+  up or down a wall or a steep step. Each tile it covers burns once and does not spread the fire further.
+oil_amount: Tiles one pot covers
+oil_amount_tooltip: |
+  How many tiles the oil from one pot covers. 41 is what the unmodified game's fire covers in
+  open ground.
+oil_damage: Burning oil damages buildings it touches
+oil_damage_tooltip: |
+  The downside: buildings at the edge of the burning oil do not catch fire, but they are damaged
+  once by the pour - a third of their health when the oil touches them right where the pot
+  landed, less the further along the oil they are. Also your own buildings.
+
 diagnostics_group: Diagnostics
 diagnostics_group_descr: |
   For testing. Writes a line to ucp3.log when an AI shield, siege tower or engineer is given a new place

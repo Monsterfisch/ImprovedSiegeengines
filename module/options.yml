@@ -133,6 +133,48 @@ options:
 
 - display: GroupBox
   category: [Improved Siegeengines]
+  header: '{{oil_group}}'
+  text: '{{oil_group_descr}}'
+  hasHeader: true
+  children:
+  - url: improved-siegeengines.oil.aim
+    name: improved-siegeengines-oil-aim
+    text: '{{oil_aim}}'
+    tooltip: '{{oil_aim_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: improved-siegeengines.oil.spread
+    name: improved-siegeengines-oil-spread
+    text: '{{oil_spread}}'
+    tooltip: '{{oil_spread_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+  - url: improved-siegeengines.oil.amount
+    name: improved-siegeengines-oil-amount
+    text: '{{oil_amount}}'
+    tooltip: '{{oil_amount_tooltip}}'
+    display: Number
+    contents:
+      type: integer
+      value: 41
+      min: 5
+      max: 200
+      step: 1
+  - url: improved-siegeengines.oil.damage
+    name: improved-siegeengines-oil-damage
+    text: '{{oil_damage}}'
+    tooltip: '{{oil_damage_tooltip}}'
+    display: Switch
+    contents:
+      type: boolean
+      value: true
+
+- display: GroupBox
+  category: [Improved Siegeengines]
   header: '{{diagnostics_group}}'
   text: '{{diagnostics_group_descr}}'
   hasHeader: true
