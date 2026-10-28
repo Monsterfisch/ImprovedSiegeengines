@@ -136,7 +136,8 @@ oil_spread_tooltip: |
   down a wall or a steep step. It starts where the engineer aimed - also when the pot comes down
   on the wall he stands on. In open ground that is exactly the unmodified game's pour: the same
   fire, flare and spreading. Down a narrow passage, where it runs further than that fire reaches,
-  more fires of the same kind start along it as the oil gets there.
+  it looks like more pots poured along it: every 5 tiles, as the oil gets there, another of the
+  same fires starts, with its flare and the pot's impact sound.
 oil_amount: Tiles one pot covers
 oil_amount_tooltip: |
   How many tiles the oil from one pot covers. 41 is what the unmodified game's fire covers in

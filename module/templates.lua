@@ -1841,8 +1841,20 @@ templates.ignite = [[
   jmp FIRE_AT
 ]]
 
--- oilFire(owner, mx, my, height, strength), cdecl: the game's own fire, spreading by its rules.
+-- oilFire(owner, mx, my, height, strength), cdecl: the game's own fire, spreading by its rules;
+-- at full strength it is a pour of its own and the pot's impact sound plays where it starts.
 templates.oilFire = [[
+  cmp dword [esp + 0x14], 5
+  jl IGNITE
+  push 0x65
+  mov eax, [esp + 0x10]
+  sar eax, 3
+  push eax
+  mov eax, [esp + 0x10]
+  sar eax, 3
+  push eax
+  mov ecx, SFXSTATE
+  call POURSOUND
   jmp IGNITE
 ]]
 
@@ -1851,9 +1863,9 @@ templates.oilFire = [[
 -- pourable tiles of about the same height, AMOUNT tiles, starting where the pot was aimed (its
 -- engineer's last pour near there) or the ground nearest to it. The landing tile gets the game's
 -- own oil fire (strength 5, which spreads REACH tiles by itself - in open ground that is the whole
--- of the oil, exactly the original pour). Where the oil runs further, along a narrow passage, a
--- smaller fire of the same kind starts every SEEDGAP tiles beyond that as the oil gets there, and
--- spreads the game's way too. Narrow ground carries the oil far, open ground keeps it a pool.
+-- of the oil, exactly the original pour). Where the oil runs further, along a narrow passage,
+-- another pour of the same kind (strength SEED, less near the end, with the impact sound) starts
+-- every SEEDGAP tiles beyond that as the oil gets there, and spreads the game's way too. Narrow ground carries the oil far, open ground keeps it a pool.
 -- With building damage on, a flammable building it touches loses a third of its health at most,
 -- less the further from the landing tile the oil that reaches it is.
 templates.oilSpread = [[
@@ -2119,7 +2131,13 @@ templates.oilSpread = [[
   push dword [OIL + 0x80]
   push dword [OIL + 0x7C]
   push dword [OIL + 0x78]
+  test esi, esi
+  jnz .seedNow
+  call IGNITE
+  jmp .fired
+.seedNow:
   call OILFIRE
+.fired:
   add esp, 0x14
 .lit:
   inc esi
