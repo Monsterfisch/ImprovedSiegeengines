@@ -134,19 +134,22 @@ oil_spread_tooltip: |
   The oil from one pot runs out over the ground it lands on, tile by tile, instead of burning in
   a fixed shape: the same amount of oil covers the same number of tiles. In open ground it is a
   round pool, in a narrow passage it runs far along it. It only runs between tiles of about the
-  same height, never up or down a wall or a steep step. The flames are biggest where the pot
-  landed - with the game's ignition flare there, as always - and get smaller towards the end of
-  the oil. The fire does not spread past the oil.
+  same height, never up or down a wall or a steep step. It burns like a lit pitch ditch: the
+  tall pitch flames near where the pot landed (with the game's ignition flare), smaller ones
+  towards the end of the oil, then it dies down. The fire does not spread past the oil.
 oil_amount: Tiles one pot covers
 oil_amount_tooltip: |
   How many tiles the oil from one pot covers. 41 is what the unmodified game's fire covers in
   open ground.
 oil_damage: Burning oil damages buildings it touches
 oil_damage_tooltip: |
-  The downside: buildings that can burn (wooden houses, workshops, farms, granaries and the like)
-  at the edge of the oil do not catch fire, but take damage once when the oil reaches them - a
-  third of their health right where the pot landed, less the further along the oil they are.
-  Your own too. Towers, gatehouses, keeps and other stone buildings are not damaged.
+  The downside: buildings at the edge of the oil that the game lets burn do not catch fire, but
+  take damage once when the oil reaches them - a third of their health right where the pot
+  landed, less the further along the oil they are. Your own too. That is every building the
+  game's own fire can set alight: hovels, workshops, farms, mills, the granary, armoury,
+  barracks, mercenary post, market, stables, engineers' and tunnellers' guilds, chapel, church,
+  cathedral, inn, bakery, blacksmith, oil smelter, the punishment and fun buildings and so on.
+  Walls, towers, gatehouses, keeps, stockpiles, wells and siege tents are not damaged.
 
 diagnostics_group: Diagnostics
 diagnostics_group_descr: |

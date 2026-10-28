@@ -1,6 +1,6 @@
 # Improved Siegeengines
 
-Version 1.0.17
+Version 1.0.18
 
 The AI's siege engines in the unmodified game waste themselves: catapults roll up to the wall
 they could have hit from far away, siege tents creep further out the longer a game goes until
@@ -79,9 +79,11 @@ on the nearest ground no more than 45 degrees off his line to it, or keeps his o
 "impossible location".
 
 **Oil spreads by its amount.** One pot's oil runs out tile by tile over a set number of tiles (41, a
-setting): a pool in the open, a long streak down a narrow passage. The flames are biggest where it
-landed and smaller towards the end. Wooden buildings it touches don't catch fire but lose up to a
-third of their health, most right at the landing spot; stone buildings are not hurt.
+setting): a pool in the open, a long streak down a narrow passage. It burns like a lit pitch ditch,
+tall flames near the landing spot and smaller ones towards the end. Buildings the game's fire can
+set alight (from hovels and workshops to the armoury, church and cathedral) don't catch fire but
+lose up to a third of their health, most right at the landing spot; walls, towers, gatehouses and
+keeps are not hurt.
 
 ## Good to know
 

@@ -1827,12 +1827,31 @@ templates.ignite = [[
   jmp FIRE_AT
 ]]
 
+-- oilFire(owner, mx, my, height, strength), cdecl: ignite, and the new fire never spreads by
+-- itself (its count of spread directions already at 4) - the oil decides where fire is. It burns,
+-- flares at strength 3 and up and dies down like any other fire, the way a pitch ditch's does.
+templates.oilFire = [[
+  push dword [esp + 0x14]
+  push dword [esp + 0x14]
+  push dword [esp + 0x14]
+  push dword [esp + 0x14]
+  push dword [esp + 0x14]
+  call IGNITE
+  add esp, 0x14
+  test eax, eax
+  jle .done
+  imul eax, eax, 0xE8
+  mov word [FIREPARAM + eax + 2], 4
+.done:
+  ret
+]]
+
 -- oilSpread(owner, mx, my, height, strength), cdecl, in place of the fire an oil pot starts where
 -- it lands: the same amount of oil spread over the ground - a flood from the landing tile over
--- pourable tiles of about the same height, AMOUNT tiles. Each tile burns with a strength (and so a
--- flame size) that falls from 5 at the landing tile to 1 at the far end, never more than its own
--- distance to the end, so the fire's own spreading stays inside the oil; tiles next to a building
--- burn at 1, so it never catches. Narrow ground carries the oil far, open ground keeps it a pool.
+-- pourable tiles of about the same height, AMOUNT tiles. Each tile burns with a strength from 5 at
+-- the landing tile down to 2 at the far end (3 and up is the tall flame a pitch ditch burns with,
+-- 2 a smaller one); none of these fires spreads by itself, so nothing burns past the oil and no
+-- building catches. Narrow ground carries the oil far, open ground keeps it a pool.
 -- With building damage on, a flammable building it touches loses a third of its health at most,
 -- less the further from the landing tile the oil that reaches it is.
 templates.oilSpread = [[
@@ -2006,31 +2025,18 @@ templates.oilSpread = [[
   jge .damage
   mov edi, esi
   shl edi, 4
-  mov ebx, 1
-  cmp byte [QFLAG + esi], 0
-  jne .strength
-  mov ecx, [OIL + 0x58]
-  sub ecx, [QUEUE + edi + 12]
-  mov ebx, ecx
-  inc ecx
-  imul ecx, ecx, 5
-  add ecx, [OIL + 0x58]
-  mov eax, ecx
+  mov eax, [OIL + 0x58]
+  sub eax, [QUEUE + edi + 12]
+  imul eax, eax, 3
+  add eax, [OIL + 0x58]
   mov ecx, [OIL + 0x58]
   inc ecx
   xor edx, edx
   div ecx
-  cmp eax, ebx
-  jge .low
-  mov ebx, eax
-.low:
+  lea ebx, [eax + 2]
   cmp ebx, 5
-  jle .high
+  jle .strength
   mov ebx, 5
-.high:
-  cmp ebx, 1
-  jge .strength
-  mov ebx, 1
 .strength:
   mov [OIL + 0x8C], ebx
   mov dword [OIL + 0x74], 0
@@ -2064,7 +2070,7 @@ templates.oilSpread = [[
   push dword [OIL + 0x80]
   push dword [OIL + 0x7C]
   push dword [OIL + 0x78]
-  call IGNITE
+  call OILFIRE
   add esp, 0x14
 .lit:
   inc esi
@@ -2220,7 +2226,7 @@ templates.oilTick = [[
   push dword [edi + 16]
   push dword [edi + 12]
   push dword [edi + 8]
-  call IGNITE
+  call OILFIRE
   add esp, 0x14
   jmp .free
 .damage:
