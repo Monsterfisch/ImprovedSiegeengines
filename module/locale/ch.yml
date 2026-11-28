@@ -1,0 +1,46 @@
+ai: AI
+balance_changes: 平衡调整
+bugfixes: 错误修复
+catapults_drop_destroyed: 停止向已摧毁的目标开火
+catapults_drop_destroyed_details: 瞄准的建筑被摧毁后，攻城器械立即停止射击。
+catapults_enabled: 让 AI 投石车与重型投石机瞄准攻城目标
+catapults_enabled_details: 远程攻城器械在射程内瞄准敌方防御工事。
+catapults_group: AI 投石车与重型投石机
+catapults_on_the_way: 行进途中停下开火
+catapults_on_the_way_details: 攻城目标进入射程时，攻城器械便停下开火。
+catapults_other_enemies: 也向射程内的其他敌人开火
+catapults_other_enemies_details: 指定对手不在射程内时，攻城器械可向其他敌方建筑开火。
+fixes: 修正
+improvements: 改进
+oil_aim: 向空地倾倒滚油
+oil_aim_details: 选中滚油工程师并对空地下达常规攻击指令。
+oil_damage: 燃烧的油液会伤害建筑
+oil_damage_details: 蔓延的火油接触到建筑时会造成伤害。
+oil_group: 燃烧滚油
+oil_spread: 滚油在地面蔓延
+oil_spread_details: 倒出的滚油会将火焰蔓延到周围地面。
+shields_enabled: AI 移动盾牌随己方部队行动
+shields_enabled_details: AI 移动盾牌会跟随友军并提供掩护。
+tags.behavior: 行为
+tents_engineers: 让工程师进入各自的攻城帐篷
+tents_engineers_details: 指派的 AI 工程师能够顺利到达并进入攻城帐篷。
+tents_free: 复用已清空的攻城帐篷点位
+tents_free_details: AI 可在已清理出的可用点位上建造新的攻城帐篷。
+tents_group: AI 攻城帐篷
+tents_range: 将远程攻城帐篷建在射程内
+tents_range_details: AI 会把投石车、重型投石机和火焰弩炮的帐篷建在这些器械能打到目标的位置。
+towers_ai_passengers: AI 将远程部队装入攻城塔
+towers_ai_passengers_details: AI 攻城塔可以让远程部队登乘。
+towers_dock: 让攻城塔能停靠更多城墙
+towers_dock_details: 命令攻城塔停靠城墙，包括斜向城墙。
+towers_group: 攻城塔乘员
+towers_orders: AI 攻城塔自行挑选停靠城墙
+towers_orders_details: AI 攻城塔会寻找可以抵达并停靠的城墙。
+towers_passenger_slow: 搭载五名及以上乘员时减速
+towers_passenger_slow_tooltip: 攻城塔搭载五名及以上部队时移动速度会变慢。
+towers_passengers: 在攻城塔上搭载部队
+towers_passengers_details: 选中步兵点击友方攻城塔即可登塔；选中攻城塔并以离开器械光标点击它即可下塔。
+cat_siege_crews: 攻城人员与器械
+cat_siege_digging: 攻城器械与挖掘
+cat_siege_sapping: 攻城与挖掘
+cat_siege_targeting: 攻城与目标

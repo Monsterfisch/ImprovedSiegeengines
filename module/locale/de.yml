@@ -1,0 +1,46 @@
+ai: KI
+balance_changes: Balance-Änderungen
+bugfixes: Fehlerkorrekturen
+catapults_drop_destroyed: Feuer auf zerstörte Ziele einstellen
+catapults_drop_destroyed_details: Belagerungsgeräte stellen das Feuer ein, sobald das anvisierte Gebäude zerstört ist.
+catapults_enabled: KI-Katapulte und Triboke auf Belagerungsziele ausrichten
+catapults_enabled_details: Fernkampf-Belagerungsgeräte zielen aus Schussreichweite auf feindliche Verteidigungen.
+catapults_group: KI-Katapulte und Triboke
+catapults_on_the_way: Unterwegs zum Feuern anhalten
+catapults_on_the_way_details: Geräte feuern, sobald ein Belagerungsziel in Reichweite kommt.
+catapults_other_enemies: Auch auf andere Gegner in Reichweite feuern
+catapults_other_enemies_details: Geräte können andere feindliche Gebäude beschießen, wenn der zugewiesene Gegner außer Reichweite ist.
+fixes: Korrekturen
+improvements: Verbesserungen
+oil_aim: Öl auf freies Gelände gießen
+oil_aim_details: Wähle einen Baumeister mit Pech und gib den üblichen Angriffsbefehl auf freiem Gelände.
+oil_damage: Brennendes Öl beschädigt Gebäude
+oil_damage_details: Gebäude nehmen Schaden, wenn sich ausbreitendes Öl sie erreicht.
+oil_group: Brennendes Öl
+oil_spread: Öl breitet sich am Boden aus
+oil_spread_details: Ausgegossenes Pech trägt das Feuer auf den umliegenden Boden.
+shields_enabled: KI-Schilde bleiben bei eigenen Truppen
+shields_enabled_details: KI-Schilde folgen verbündeten Truppen, um sie zu schützen.
+tags.behavior: Verhalten
+tents_engineers: Ingenieure ihre Zelte betreten lassen
+tents_engineers_details: Zugewiesene KI-Ingenieure erreichen und betreten ihre Belagerungszelte.
+tents_free: Freie Belagerungszelt-Plätze wiederverwenden
+tents_free_details: Die KI kann neue Belagerungszelte auf nutzbaren, geräumten Plätzen errichten.
+tents_group: KI-Belagerungszelte
+tents_range: Fernkampf-Belagerungszelte in Schussreichweite bauen
+tents_range_details: Die KI stellt die Zelte für Katapulte, Triboke und Feuerballisten so auf, dass die Geräte ihr Ziel treffen können.
+towers_ai_passengers: KI besetzt Belagerungstürme mit Fernkämpfern
+towers_ai_passengers_details: KI-Belagerungstürme können Fernkämpfer an Bord nehmen.
+towers_dock: Belagerungstürme an mehr Mauern andocken
+towers_dock_details: Befiehl einem Belagerungsturm, an einer Mauer anzudocken, auch an diagonalen Mauern.
+towers_group: Belagerungsturm-Besatzungen
+towers_orders: KI-Belagerungstürme wählen eine Mauer zum Andocken
+towers_orders_details: KI-Belagerungstürme suchen eine erreichbare Mauer und docken daran an.
+towers_passenger_slow: Belagerungstürme ab fünf Mann verlangsamen
+towers_passenger_slow_tooltip: Ein Belagerungsturm wird langsamer, wenn er fünf oder mehr Soldaten trägt.
+towers_passengers: Truppen auf Belagerungstürmen befördern
+towers_passengers_details: Wähle Fußsoldaten und klicke zum Einsteigen auf einen verbündeten Belagerungsturm. Wähle zum Aussteigen den Turm und klicke ihn mit dem Aussteigen-Mauszeiger an.
+cat_siege_crews: Belagerungstrupps und Gerät
+cat_siege_digging: Belagerungsgerät und Graben
+cat_siege_sapping: Belagerung und Untergraben
+cat_siege_targeting: Belagerung und Zielwahl

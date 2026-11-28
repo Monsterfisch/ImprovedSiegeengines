@@ -44,12 +44,12 @@ local templates = require("templates")
 local MODULE_NAME = "improved-siegeengines"
 
 local DEFAULTS = {
-  catapults = { enabled = true, on_the_way = true, other_enemies = true, scatter = 50,
-    drop_destroyed = true },
-  tents = { free = true, range = true, variation = 10, engineers = true },
-  towers = { dock = true, orders = true, passengers = true, ai_passengers = true, passenger_lift = 4, passenger_slow = true },
-  shields = { enabled = true },
-  oil = { aim = true, spread = true, amount = 41, damage = true },
+  catapults = { enabled = false, on_the_way = false, other_enemies = false, scatter = 100,
+    drop_destroyed = false },
+  tents = { free = false, range = false, variation = 10, engineers = false },
+  towers = { dock = false, orders = false, passengers = false, ai_passengers = false, passenger_lift = 4, passenger_slow = false },
+  shields = { enabled = false },
+  oil = { aim = false, spread = false, amount = 41, damage = false },
   diagnostics = { log = false },
 }
 
@@ -94,7 +94,7 @@ local TENTS_SUIT_CALL = 0x2FA               -- call placeSiegeTentOrTunnelAtSuit
 local TENT_PROLOGUE = { 0x53, 0x8B, 0x5C, 0x24, 0x08 }   -- push ebx; mov ebx, [esp+8]
 local ANGLE_FIND_CALL = 0x37                -- call algFindAttackAngle
 local SPOT_HOOK = { 0x1A1, { 0x8B, 0xC8, 0xC1, 0xE1, 0x05, 0x83, 0xB9 } }
-local SPOT_HOOK_SIZE = 0x1B
+local SPOT_HOOK_SIZE = 0x15                 -- up to the je, which stays the game's
 local SPOT_THREE = 0x1A8                    -- cmp [ecx + spots.three], 0
 local SPOT_TRIBE = { 0x1AF, { 0x83, 0xB9 } } -- cmp [ecx + spots.tribeID], 0
 local SPOT_FOUND = { 0x1B6, { 0x0F, 0x84 } } -- je <return the spot>
@@ -173,8 +173,9 @@ local OILAT = {
   OIL_POT_FIRE = 0xFC,
   FIRE_AT = { 0x4B, { 0x81, 0xF9, 0x8F, 0x01, 0x00, 0x00 } },   -- past the random nudge
   FIRE_STRENGTH = { 0x1A0, { 0x66, 0x89, 0x91 } },   -- mov [ecx + fire.strength], dx
-  -- updateEntities, once a tick: the oil flows on from here
-  AOB_ENTITIES = "51 53 55 56 8B F1 8B 0D",
+  -- updateEntities, once a tick: the oil flows on from here. The pattern starts after the
+  -- prologue, so it also matches when another module has hooked the prologue.
+  AOB_ENTITIES = "8B 0D ? ? ? ? B8 67 66 66 66 F7 E9 C1 FA 02 8B C2 C1 E8 1F 03 C2 8D 04 80 03 C0 2B C8 75 07 C7 46 08 19 00 00 00",
   ENTITIES_PROLOGUE = { 0x00, { 0x51, 0x53, 0x55, 0x56, 0x8B, 0xF1 } },
   ENTITIES_PROLOGUE_SIZE = 6,
   OIL_STEP = 3,            -- ticks the oil takes from one tile to the next
@@ -202,6 +203,9 @@ local OILAT = {
 -- first bytes, so it is found through a call (and called through their hooks).
 local AOB_UPDATE_CATAPULT = "83 EC 74 53 8B 1D ? ? ? ? 55 56"
 local CATAPULT_SET_DESTINATION = 0x87F
+local AOB_PLAYER_AIC = "69 C0 F4 39 00 00 8B 88 ? ? ? ? 69 C9 A4 02 00 00"
+-- The defense-row mapper body, after AIV Troop Behaviour's ten-byte hook.
+local AOB_UNIT_TYPE = "0F B7 88 ? ? ? ? 66 83 F9 01 0F BF 90 ? ? ? ? 75 09 0F BF 88 ? ? ? ? EB 03 0F BF C9"
 local AOB_TEAMS = "8B 0C 85 ? ? ? ? 8B 44 24 30 3B 0C 85 ? ? ? ?"
 local TEAMS_OPERAND = 0x03
 local AOB_TICKS = "8B 87 50 0A 00 00 8B 8F 98 09 00 00 8B 15"
@@ -304,10 +308,8 @@ local function wr16(address, value) core.writeSmallInteger(address, value & 0xFF
 local function byte(address) return core.readByte(address) & 0xFF end
 
 local function scan(pattern, purpose)
-  local ok, address = pcall(core.AOBScan, pattern)
-  if not ok or address == nil then
-    error(string.format("could not find %s", purpose), 0)
-  end
+  local found, address = pcall(core.AOBScan, pattern)
+  if not found then error(purpose .. ": not found", 0) end
   return address
 end
 
@@ -381,16 +383,23 @@ end
 local function setting(config, group, name)
   local section = type(config) == "table" and config[group] or nil
   if type(section) == "table" and section[name] ~= nil then
-    if type(DEFAULTS[group][name]) == "boolean" then return section[name] == true end
-    return section[name]
+    local value = section[name]
+    if type(DEFAULTS[group][name]) ~= "boolean" or type(value) == "boolean" then return value end
+    log(ERROR, "Improved Siegeengines: " .. name .. " must be on or off. Using the default.")
   end
   return DEFAULTS[group][name]
 end
 
 local function number(config, group, name, low, high)
-  local value = tonumber(setting(config, group, name)) or DEFAULTS[group][name]
-  value = math.tointeger(math.floor(value)) or DEFAULTS[group][name]
-  return math.max(low, math.min(high, value))
+  local value = setting(config, group, name)
+  if type(value) ~= "number" then
+    log(ERROR, "Improved Siegeengines: " .. name .. " must be a number. Using the default.")
+  elseif value >= low and value <= high and value % 1 == 0 then
+    return value
+  else
+    log(WARNING, "Improved Siegeengines: " .. name .. " is outside the allowed values. Using the default.")
+  end
+  return DEFAULTS[group][name]
 end
 
 -- A cdecl function with no arguments that runs `callback` in lua.
@@ -866,7 +875,10 @@ end
 -- Enable
 ---------------------------------------------------------------------------------------
 
-local function readCommon()
+local bind = {}
+
+function bind.readMap()
+  if G.flags then return end
   local flags = rd32(scan(AOB_TILE_FLAGS, "the tile flags") + TILE_FLAGS_OPERAND)
   local tms = flags - MAP.FLAGS
   G.flags = flags
@@ -877,50 +889,116 @@ local function readCommon()
   G.valid = tms + MAP.VALID
   G.buildingIds = tms + MAP.BUILDINGS
   G.unitIds = tms + MAP.UNITS
-  G.teams = rd32(scan(AOB_TEAMS, "the team table") + TEAMS_OPERAND)
-  G.ticks = rd32(scan(AOB_TICKS, "the tick counter") + TICKS_OPERAND)
+end
 
-  local cone = scan(AOB_CONE, "the siege engines' target search")
+function bind.readTick()
+  G.ticks = G.ticks or rd32(scan(AOB_TICKS, "the tick counter") + TICKS_OPERAND)
+end
+
+function bind.readCone()
+  G.cone = G.cone or scan(AOB_CONE, "the siege engines' target search")
+  return G.cone
+end
+
+function bind.readBuildings()
+  if G.buildings then return end
+  local cone = bind.readCone()
   G.buildingType = operand(cone, CONE_TYPE, "the building types")
-  G.buildingOwner = operand(cone, CONE_OWNER, "the building owners")
-  G.health = operand(cone, CONE_HEALTH, "the damageable buildings")
-  if G.buildingOwner - G.buildingType ~= B.OWNER - B.TYPE then
-    error("the building layout is not the one this module knows", 0)
-  end
   G.buildings = G.buildingType - B.TYPE
   G.buildingsState = G.buildings - B.STATE_OFFSET
-  G.range = rangeTable(scan(AOB_ACQUIRE, "the shooting code"))
+end
 
-  local command = scan(AOB_COMMAND, "the AI's siege engine orders")
-  G.command = command
-  G.players = operand(command, CMD_TRIBE_IDS, "the AI's troop list") - P.TRIBE_IDS
+function bind.readBuildingOwners()
+  if G.buildingOwner then return end
+  local owner = operand(G.cone, CONE_OWNER, "the building owners")
+  if owner - G.buildingType ~= B.OWNER - B.TYPE then
+    error("the building layout is not the one this module knows", 0)
+  end
+  G.buildingOwner = owner
+end
+
+function bind.readPlayers()
+  if G.players then return end
+  local site = scan(AOB_PLAYER_AIC, "the player AI identities")
+  G.players = rd32(site + 8) - P.AI_TYPE
+end
+
+function bind.readUnits()
+  if G.units then return end
+  local mapper = scan(AOB_UNIT_TYPE, "the unit type array")
+  local unitType = rd32(mapper + 3)
+  if rd32(mapper + 14) - unitType ~= U.OWNER - U.TYPE then
+    error("the unit layout could not be verified", 0)
+  end
+  G.units = unitType - U.TYPE
+  G.unitsState = G.units - U.STATE_OFFSET
+end
+
+function bind.readCommand()
+  G.command = G.command or scan(AOB_COMMAND, "the AI's siege engine orders")
+  return G.command
+end
+
+function bind.readTroops()
+  if G.maxUnits then return end
+  local command = bind.readCommand()
+  local players = operand(command, CMD_TRIBE_IDS, "the AI's troop list") - P.TRIBE_IDS
+  if G.players and G.players ~= players then error("the player layout could not be verified", 0) end
+  local first = operand(command, CMD_UNITS, "the unit array")
+  local units = first - U.STRIDE - U.TYPE
+  if G.units and G.units ~= units then error("the unit layout could not be verified", 0) end
+  local maxUnits = (operand(command, CMD_LAST, "the unit array") - first) // U.STRIDE + 1
   G.tribeStride = operand(command, CMD_STRIDE, "the troop size")
   G.tribes = operand(command, CMD_TRIBES, "the troops")
-  local first = operand(command, CMD_UNITS, "the unit array")
-  G.units = first - U.STRIDE - U.TYPE
-  G.maxUnits = (operand(command, CMD_LAST, "the unit array") - first) // U.STRIDE + 1
-  G.unitsState = G.units - U.STATE_OFFSET
-  G.leaderOffset = operand(command, CMD_LEADER, "the troop leader") - G.tribes
-  G.followOffset = operand(command, CMD_FOLLOW, "the shield link") - G.tribes
-  G.followUidOffset = operand(command, CMD_FOLLOW_UID, "the shield link") - G.tribes
-  G.backlinkOffset = operand(command, CMD_BACKLINK, "the shield link") - G.tribes
-  G.wide = operand(command, CMD_WIDE, "the AI's tower walls")
-  if G.leaderOffset ~= T.LEADER then
+  G.players, G.units, G.maxUnits = players, units, maxUnits
+  G.unitsState = units - U.STATE_OFFSET
+end
+
+function bind.readTroopOrders(command)
+  if G.leaderOffset then return end
+  local leader = operand(command, CMD_LEADER, "the troop leader") - G.tribes
+  if leader ~= T.LEADER then
     error("the troop layout is not the one this module knows", 0)
   end
+  F.move = core.exposeCode(callTarget(command + CMD_MOVE[1], "the troop move order"), 7, 1)
+  G.leaderOffset = leader
+end
 
+function bind.readDestination()
+  F.setDestination = F.setDestination or core.exposeCode(callTarget(scan(AOB_UPDATE_CATAPULT,
+    "the catapult update") + CATAPULT_SET_DESTINATION, "setDestinationForUnit"), 5, 1)
+end
+
+function bind.readData()
+  if G.data then return end
   G.data = core.allocate(0x200, true)
-  G.fort = core.allocate(512, true)
-  for _, kind in ipairs(FORTIFICATIONS) do core.writeByte(G.fort + kind, 1) end
   wr32(G.data + 0x78, 0x7FFFFFFF)
   wr32(G.data + 0x7C, 0x7FFFFFFF)
+end
 
-  local helpers = { VALID = G.valid, ROWS = G.rows, FLAGS = G.flags, BIDS = G.buildingIds,
-    BTYPE = G.buildingType }
-  G.tileAt = assemble(templates.tileAt, helpers)
-  helpers.TILEAT = G.tileAt
-  G.wallAt = assemble(templates.wallAt, helpers)
-  G.clearAt = assemble(templates.clearAt, helpers)
+function bind.readFortifications()
+  if G.fort then return end
+  G.fort = core.allocate(512, true)
+  for _, kind in ipairs(FORTIFICATIONS) do core.writeByte(G.fort + kind, 1) end
+end
+
+function bind.readTileAt()
+  G.tileAt = G.tileAt or assemble(templates.tileAt, { VALID = G.valid, ROWS = G.rows })
+end
+
+function bind.readWalls()
+  bind.readTileAt()
+  local helpers = { TILEAT = G.tileAt, FLAGS = G.flags, BIDS = G.buildingIds, BTYPE = G.buildingType }
+  G.wallAt = G.wallAt or assemble(templates.wallAt, helpers)
+  G.clearAt = G.clearAt or assemble(templates.clearAt, helpers)
+end
+
+function bind.readTeams()
+  G.teams = G.teams or rd32(scan(AOB_TEAMS, "the team table") + TEAMS_OPERAND)
+end
+
+function bind.readRanges()
+  G.range = G.range or rangeTable(scan(AOB_ACQUIRE, "the shooting code"))
 end
 
 -- The values every script may use; assemble() passes each script only its own.
@@ -933,7 +1011,7 @@ local function values(extra)
     TSTRIDE = G.tribeStride, PLAYERS = G.players, MAXUNITS = G.maxUnits,
     MAXTRIBES = MAX_TRIBES, TILES = TILES, TILEAT = G.tileAt, WALLAT = G.wallAt,
     CLEARAT = G.clearAt, FORT = G.fort, CIVILIAN = CIVILIAN_PENALTY, OTHER = OTHER_PENALTY,
-    BSTATE = G.buildings + B.STATE,
+    BSTATE = G.buildings and G.buildings + B.STATE,
   }
   for name, value in pairs(extra or {}) do v[name] = value end
   return v
@@ -973,6 +1051,17 @@ local function logPick()
 end
 
 local function enableCatapults()
+  bind.readMap()
+  bind.readBuildings()
+  bind.readBuildingOwners()
+  G.health = operand(G.cone, CONE_HEALTH, "the damageable buildings")
+  bind.readPlayers()
+  bind.readUnits()
+  bind.readCommand()
+  bind.readTeams()
+  bind.readRanges()
+  bind.readData()
+  bind.readFortifications()
   local harass = scan(AOB_HARASS, "the siege engines' target choice")
   expectBytes(harass + HARASS_HOOK[1], HARASS_HOOK[2], "the siege engines' target choice")
   local search = assemble(templates.catapultSearch, values())
@@ -997,6 +1086,7 @@ local function enableCatapults()
 end
 
 local function enableStandingTargets()
+  bind.readBuildings()
   local harass = scan(AOB_HARASS, "the siege engines' target choice")
   expectBytes(harass + HARASS_TARGET_CHECK[1], HARASS_TARGET_CHECK[2], "the siege engines' building target")
   if operand(harass, HARASS_UID, "the building uid") - B.UID + B.STATE ~= G.buildings + B.STATE then
@@ -1016,6 +1106,7 @@ local SCATTER_HOOK = { 0x286, { 0x83, 0xFF, 0x08, 0x7D, 0x07 } }
 local SCATTER_TYPE = { 0x63, { 0x0F, 0xB7, 0x86, 0xA2, 0x06, 0x00, 0x00 } }
 
 local function enableScatter()
+  bind.readPlayers()
   local scatter = scan(AOB_SCATTER, "the siege engines' aim")
   expectBytes(scatter + SCATTER_HOOK[1], SCATTER_HOOK[2], "the siege engines' aim")
   expectBytes(scatter + SCATTER_TYPE[1], SCATTER_TYPE[2], "the siege engines' aim")
@@ -1030,6 +1121,16 @@ local function enableScatter()
 end
 
 local function enableTents()
+  bind.readMap()
+  bind.readTick()
+  bind.readBuildings()
+  bind.readBuildingOwners()
+  bind.readTroops()
+  bind.readTeams()
+  bind.readRanges()
+  bind.readData()
+  bind.readFortifications()
+  bind.readTileAt()
   local tents = scan(AOB_TENTS, "the AI's siege tent placement")
   local angle = callTarget(tents + TENTS_ANGLE_CALL, "the siege tent placement")
   local suitable = callTarget(tents + TENTS_SUIT_CALL, "the siege tent placement")
@@ -1041,7 +1142,6 @@ local function enableTents()
   local tribeId = operand(find, SPOT_TRIBE, "the tent spots")
   if three - tribeId ~= 8 then error("the tent spots are not laid out as this module knows", 0) end
   expectBytes(find + SPOT_FOUND[1], SPOT_FOUND[2], "the tent spot search")
-  local found = (find + SPOT_FOUND[1] + 6 + rd32(find + SPOT_FOUND[1] + 2)) & 0xFFFFFFFF
   local location = scan(AOB_LOCATION, "the siege tent location search")
   expectBytes(location + LOCATION_HOOK[1], LOCATION_HOOK[2], "the siege tent location search")
   local engineers = scan(AOB_ENGINEERS, "the siege engine types")
@@ -1056,7 +1156,7 @@ local function enableTents()
     MELEE = MELEE_REACH, MAXTHREATS = MAX_THREATS, MARGIN = TENT_MARGIN,
     ENG_UT = operand(engineers, ENGINEERS_UNIT_TYPES, "the siege engine types"),
     ENG_BT = operand(engineers, ENGINEERS_TENT_TYPES, "the siege tent types"),
-    THREE = three, TID = tribeId, FOUND = found, CONTINUE = find + SPOT_HOOK[1] + SPOT_HOOK_SIZE,
+    THREE = three, TID = tribeId, FOUND = find + SPOT_FOUND[1], CONTINUE = find + SPOT_FOUND[1] + 6,
     ATTACKED_PID = operand(location, LOCATION_ATTACKED, "the AI's distance layer"),
     LAYER = operand(location, LOCATION_LAYER, "the AI's distance layer"),
     RESUME = location + LOCATION_HOOK[1] + LOCATION_HOOK_SIZE })
@@ -1087,6 +1187,11 @@ local function freeTileSearch()
 end
 
 local function enableDocking()
+  bind.readMap()
+  bind.readBuildings()
+  bind.readUnits()
+  bind.readData()
+  bind.readWalls()
   local search = freeTileSearch()
   local ok = pcall(expectBytes, search, FREE_TILE_PROLOGUE, "where a siege tower docks")
   if not ok then
@@ -1114,6 +1219,7 @@ local WALK_EVERY = 15                        -- every 16 ticks, staggered by uni
 local UNIT_TYPES = 80
 
 local function enableWalking()
+  bind.readTick()
   local call = scan(AOB_UPDATE_CALL, "where every unit's update function is called")
   local tableAt = operand(call, UPDATE_TABLE, "the unit update table")
   expectBytes(call + UPDATE_CURRENT_AT, UPDATE_CURRENT_BYTE, "the current unit")
@@ -1133,6 +1239,11 @@ local function enableWalking()
 end
 
 local function enableOil()
+  bind.readMap()
+  bind.readTick()
+  bind.readBuildings()
+  bind.readUnits()
+  bind.readTileAt()
   local engineer = scan(AOB_UPDATE_ENGINEER, "the engineer update")
   local pour = engineer + OILAT.ENGINEER_POUR[1]
   local deposit = operand(engineer, OILAT.ENGINEER_POUR, "the engineers' oil pots")
@@ -1146,12 +1257,13 @@ local function enableOil()
   local fire = callTarget(pot + OILAT.OIL_POT_FIRE, "the oil pot's fire")
   expectBytes(fire + OILAT.FIRE_AT[1], OILAT.FIRE_AT[2], "the fire function")
   local move = scan(OILAT.AOB_MOVE_COMMAND, "the move order")
-  local flammable = callTarget(scan(AOB_CONE, "the siege engines' target search") + OILAT.CONE_FLAMMABLE,
+  local flammable = callTarget(G.cone + OILAT.CONE_FLAMMABLE,
     "the flammability test")
   local damage = scan(OILAT.AOB_BUILDING_DAMAGE, "the building damage")
 
-  local entities = scan(OILAT.AOB_ENTITIES, "the entity update")
-  expectBytes(entities, OILAT.ENTITIES_PROLOGUE[2], "the entity update")
+  local entities = scan(OILAT.AOB_ENTITIES, "the entity update") - OILAT.ENTITIES_PROLOGUE_SIZE
+  expectBytes(entities, OILAT.ENTITIES_PROLOGUE[2], "the entity update entry (already changed or unsupported)")
+  local game = assemble(templates.oilGame, { RESUME = entities + OILAT.ENTITIES_PROLOGUE_SIZE })
   G.oil = core.allocate(0x100, true)
   wr32(G.oil + 0x00, O.oilAim and 1 or 0)
   wr32(G.oil + 0x04, O.oilSpread and 1 or 0)
@@ -1193,7 +1305,7 @@ local function enableOil()
   v.RESUME = auto + OILAT.AUTO_OIL_TAKE[1] + OILAT.AUTO_OIL_TAKE_SIZE
   local take = assemble(templates.oilAuto, v)
 
-  v.RESUME = entities + OILAT.ENTITIES_PROLOGUE_SIZE
+  v.GAME = game
   local tick = assemble(templates.oilTick, v)
 
   patch(entities, jumpCode(entities, tick, OILAT.ENTITIES_PROLOGUE_SIZE), OILAT.ENTITIES_PROLOGUE_SIZE)
@@ -1206,20 +1318,18 @@ end
 local function try(purpose, fn)
   local ok, message = pcall(fn)
   if not ok then
-    log(WARNING, string.format("%s: %s is off: %s", MODULE_NAME, purpose, tostring(message)))
+    log(ERROR, purpose .. " is off. " .. tostring(message))
   end
   return ok
 end
 
 local function enableCommands()
+  bind.readTroops()
+  bind.readBuildings()
+  bind.readMap()
+  bind.readData()
   local command = G.command
-  F.move = core.exposeCode(callTarget(command + CMD_MOVE[1], "the troop move order"), 7, 1)
-  F.assign = core.exposeCode(callTarget(command + CMD_ASSIGN[1], "the troop target order"), 3, 1)
-  F.setDestination = core.exposeCode(callTarget(scan(AOB_UPDATE_CATAPULT, "the catapult update")
-    + CATAPULT_SET_DESTINATION, "setDestinationForUnit"), 5, 1)
   expectBytes(command + CMD_EPILOGUE[1], CMD_EPILOGUE[2], "the end of the AI's siege orders")
-  expectBytes(command + CMD_TOWER[1], CMD_TOWER[2], "the AI's siege tower orders")
-  expectBytes(command + CMD_SHIELD[1], CMD_SHIELD[2], "the AI's shield orders")
   G.list = core.allocate(4 * 1024, true)
   G.tlist = core.allocate(4 * 256, true)
   local collect = assemble(templates.collect, values({ LIST = G.list }))
@@ -1231,6 +1341,7 @@ local function enableCommands()
 
   if O.engineers then
     O.engineers = try("engineers into their siege tents", function()
+      bind.readDestination()
       local order = scan(AOB_INSTRUCTION, "the troop order code")
       F.entrance = core.exposeCode(callTarget(order + INSTRUCTION_ENTRANCE, "the entrance test"), 5, 1)
       F.deselect = core.exposeCode(callTarget(order + INSTRUCTION_DESELECT, "deselectUnit"), 2, 1)
@@ -1245,15 +1356,32 @@ local function enableCommands()
 
   if O.towerOrders then
     O.towerOrders = try("siege tower orders", function()
+      expectBytes(command + CMD_TOWER[1], CMD_TOWER[2], "the AI's siege tower orders")
+      bind.readTroopOrders(command)
+      bind.readDestination()
+      F.assign = core.exposeCode(callTarget(command + CMD_ASSIGN[1], "the troop target order"), 3, 1)
+      G.wide = operand(command, CMD_WIDE, "the AI's tower walls")
+      bind.readWalls()
+      bind.readTeams()
       -- the tower's free-spot search: the module's own when docking is on
       local free = G.freeTile or freeTileSearch()
       local find = assemble(templates.towerFind, values({ FREETILE = free, MAXTESTS = TOWER_TESTS }))
       F.towerFind = core.exposeCode(find, 3, 0)
     end)
-    if O.towerOrders then
-      -- the game's own tower branch goes straight on to the next unit
-      patch(command + CMD_TOWER[1], jumpCode(command + CMD_TOWER[1], command + CMD_NEXT, 7), 7)
-    end
+  end
+  if O.shields then
+    O.shields = try("siege shield orders", function()
+      expectBytes(command + CMD_SHIELD[1], CMD_SHIELD[2], "the AI's shield orders")
+      bind.readTroopOrders(command)
+      G.followOffset = operand(command, CMD_FOLLOW, "the shield link") - G.tribes
+      G.followUidOffset = operand(command, CMD_FOLLOW_UID, "the shield link") - G.tribes
+      G.backlinkOffset = operand(command, CMD_BACKLINK, "the shield link") - G.tribes
+      bind.readTeams()
+    end)
+  end
+  if not (O.engineers or O.towerOrders or O.shields) then return end
+  if O.towerOrders then
+    patch(command + CMD_TOWER[1], jumpCode(command + CMD_TOWER[1], command + CMD_NEXT, 7), 7)
   end
   if O.shields then
     patch(command + CMD_SHIELD[1], jumpCode(command + CMD_SHIELD[1], command + CMD_NEXT, 6), 6)
@@ -1262,9 +1390,39 @@ local function enableCommands()
     CMD_EPILOGUE_SIZE)
 end
 
+local crewPolicy
+
+local function riderInterface(name, fallback)
+  return function(_, ...)
+    local riders = package.loaded["riders"]
+    if riders and riders[name] then return riders[name](...) end
+    return fallback
+  end
+end
+
 return {
+  registerTowerCrewPolicy = function(_, policy)
+    assert(type(policy) == "function" and crewPolicy == nil, "Expected one tower crew policy")
+    crewPolicy = policy
+    local riders = package.loaded["riders"]
+    if riders and riders.enableCrewPolicy then riders.enableCrewPolicy() end
+  end,
+  isClimbingReady = riderInterface("isClimbingReady", false),
+  getFreeSeats = riderInterface("getFreeSeats", 0),
+  boardUnit = riderInterface("boardUnit", false),
 
   enable = function(self, config)
+    if config ~= nil and type(config) ~= "table" then
+      log(ERROR, "Improved Siegeengines settings must be a table.")
+    end
+    config = type(config) == "table" and config or {}
+    for group in pairs(DEFAULTS) do
+      if config[group] ~= nil and type(config[group]) ~= "table" then
+        log(ERROR, "Improved Siegeengines: " .. group .. " settings must be a table.")
+      end
+    end
+    local lift = number(config, "towers", "passenger_lift", -40, 80)
+    local slow = setting(config, "towers", "passenger_slow")
     O.catapults = setting(config, "catapults", "enabled")
     O.onTheWay = O.catapults and setting(config, "catapults", "on_the_way")
     O.otherEnemies = O.catapults and setting(config, "catapults", "other_enemies")
@@ -1284,12 +1442,11 @@ return {
     O.oilSpread = setting(config, "oil", "spread")
     O.oilAmount = number(config, "oil", "amount", 5, 200)
     O.oilDamage = setting(config, "oil", "damage")
-    if not (O.catapults or O.freeSpots or O.tentRange or O.dock or O.towerOrders or O.shields
-        or O.engineers or O.standing or O.scatter < 100 or O.oilAim or O.oilSpread
-        or O.passengers or O.aiPassengers) then
+    local siege = O.catapults or O.freeSpots or O.tentRange or O.dock or O.towerOrders or O.shields
+      or O.engineers or O.standing or O.scatter < 100 or O.oilAim or O.oilSpread
+    if not (siege or O.passengers or O.aiPassengers) then
       return
     end
-    if not try("the whole module", readCommon) then return end
 
     local state = {}
     state.catapults = O.catapults and try("catapults and trebuchets choosing targets", enableCatapults)
@@ -1299,28 +1456,38 @@ return {
     state.standing = O.standing and try("siege engines dropping destroyed targets", enableStandingTargets)
     state.tents = (O.freeSpots or O.tentRange) and try("siege tent placement", enableTents)
     state.dock = O.dock and try("siege tower docking", enableDocking)
-    state.oil = (O.oilAim or O.oilSpread) and try("the oil engineers", enableOil)
+    state.oil = (O.oilAim or O.oilSpread) and try("Oil engineer customization", enableOil)
     state.commands = (O.towerOrders or O.shields or O.engineers)
       and try("shield, siege tower and engineer orders", enableCommands)
+    if G.data then
+      wr32(G.data + 0x00, state.catapults and 1 or 0)
+      wr32(G.data + 0x04, (state.tents and O.freeSpots) and 1 or 0)
+      wr32(G.data + 0x08, (state.tents and O.tentRange) and 1 or 0)
+      wr32(G.data + 0x0C, O.variation)
+      wr32(G.data + 0x10, state.dock and 1 or 0)
+      wr32(G.data + 0x1F0, (O.log and state.catapults) and 1 or 0)
+      wr32(G.data + 0x1F8, O.otherEnemies and 1 or 0)
+    end
     state.riders = (O.passengers or O.aiPassengers) and try("siege tower passengers", function()
+      bind.readMap()
+      bind.readTick()
+      bind.readBuildings()
+      bind.readTroops()
+      bind.readTileAt()
       require("riders").enable({ G = G, rd32 = rd32, wr32 = wr32, scan = scan, expectBytes = expectBytes,
         operand = operand, callTarget = callTarget, assemble = assemble, patch = patch,
-        jumpCode = jumpCode, player = O.passengers, ai = O.aiPassengers, maxTribes = MAX_TRIBES,
-        lift = number(config, "towers", "passenger_lift", -40, 80),
-        slow = setting(config, "towers", "passenger_slow"),
+        jumpCode = jumpCode, luaFunction = luaFunction,
+        crewPolicy = function(tower)
+          return crewPolicy and crewPolicy(tower)
+        end, hasCrewPolicy = crewPolicy ~= nil,
+        player = O.passengers, ai = O.aiPassengers, maxTribes = MAX_TRIBES,
+        lift = lift, slow = slow,
         playerStride = P.STRIDE, aiType = G.players + P.AI_TYPE,
         aob = { updateCall = AOB_UPDATE_CALL, updateTable = UPDATE_TABLE, currentAt = UPDATE_CURRENT_AT,
           instruction = AOB_INSTRUCTION, moveCommand = OILAT.AOB_MOVE_COMMAND,
           localPlayer = OILAT.MOVE_LOCAL_PLAYER } })
     end)
 
-    wr32(G.data + 0x00, state.catapults and 1 or 0)
-    wr32(G.data + 0x04, (state.tents and O.freeSpots) and 1 or 0)
-    wr32(G.data + 0x08, (state.tents and O.tentRange) and 1 or 0)
-    wr32(G.data + 0x0C, O.variation)
-    wr32(G.data + 0x10, state.dock and 1 or 0)
-    wr32(G.data + 0x1F0, (O.log and state.catapults) and 1 or 0)
-    wr32(G.data + 0x1F8, O.otherEnemies and 1 or 0)
     if not state.commands then O.shields, O.towerOrders, O.engineers = false, false, false end
     state.towers = state.commands and O.towerOrders
     state.engineers = state.commands and O.engineers
@@ -1341,7 +1508,8 @@ return {
       word(O.freeSpots, state.tents),
       word(O.tentRange, state.tents), O.variation,
       word(setting(config, "tents", "engineers"), state.engineers), word(O.dock, state.dock),
-      word(setting(config, "towers", "orders"), state.towers), word(O.shields, state.commands)))
+      word(setting(config, "towers", "orders"), state.towers), word(setting(config, "shields", "enabled"),
+        O.shields and state.commands)))
   end,
 
   disable = function(self, config)
@@ -1360,4 +1528,4 @@ return {
     patched = {}
   end,
 
-}
+}, { public = { "isClimbingReady", "getFreeSeats", "boardUnit", "registerTowerCrewPolicy" } }

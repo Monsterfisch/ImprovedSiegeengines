@@ -2,223 +2,235 @@ meta:
   version: 1.0.0
 options:
 - display: GroupBox
-  category: [Improved Siegeengines]
-  header: '{{catapults_group}}'
-  text: '{{catapults_group_descr}}'
   hasHeader: true
+  header: '{{catapults_group}}'
   children:
   - url: improved-siegeengines.catapults.enabled
     name: improved-siegeengines-catapults-enabled
-    text: '{{catapults_enabled}}'
-    tooltip: '{{catapults_enabled_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.catapults.on_the_way
-    name: improved-siegeengines-catapults-on-the-way
-    text: '{{catapults_on_the_way}}'
-    tooltip: '{{catapults_on_the_way_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.catapults.other_enemies
-    name: improved-siegeengines-catapults-other-enemies
-    text: '{{catapults_other_enemies}}'
-    tooltip: '{{catapults_other_enemies_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.catapults.drop_destroyed
-    name: improved-siegeengines-catapults-drop-destroyed
-    text: '{{catapults_drop_destroyed}}'
-    tooltip: '{{catapults_drop_destroyed_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.catapults.scatter
-    name: improved-siegeengines-catapults-scatter
-    text: '{{catapults_scatter}}'
-    tooltip: '{{catapults_scatter_tooltip}}'
-    display: Number
-    contents:
-      type: integer
-      value: 50
-      min: 0
-      max: 100
-      step: 10
-
-- display: GroupBox
-  category: [Improved Siegeengines]
-  header: '{{tents_group}}'
-  text: '{{tents_group_descr}}'
-  hasHeader: true
-  children:
-  - url: improved-siegeengines.tents.free
-    name: improved-siegeengines-tents-free
-    text: '{{tents_free}}'
-    tooltip: '{{tents_free_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.tents.range
-    name: improved-siegeengines-tents-range
-    text: '{{tents_range}}'
-    tooltip: '{{tents_range_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.tents.variation
-    name: improved-siegeengines-tents-variation
-    text: '{{tents_variation}}'
-    tooltip: '{{tents_variation_tooltip}}'
-    display: Number
-    contents:
-      type: integer
-      value: 10
-      min: 0
-      max: 30
-      step: 1
-  - url: improved-siegeengines.tents.engineers
-    name: improved-siegeengines-tents-engineers
-    text: '{{tents_engineers}}'
-    tooltip: '{{tents_engineers_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-
-- display: GroupBox
-  category: [Improved Siegeengines]
-  header: '{{towers_group}}'
-  text: '{{towers_group_descr}}'
-  hasHeader: true
-  children:
-  - url: improved-siegeengines.towers.dock
-    name: improved-siegeengines-towers-dock
-    text: '{{towers_dock}}'
-    tooltip: '{{towers_dock_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.towers.orders
-    name: improved-siegeengines-towers-orders
-    text: '{{towers_orders}}'
-    tooltip: '{{towers_orders_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.towers.passengers
-    name: improved-siegeengines-towers-passengers
-    text: '{{towers_passengers}}'
-    tooltip: '{{towers_passengers_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.towers.ai_passengers
-    name: improved-siegeengines-towers-ai-passengers
-    text: '{{towers_ai_passengers}}'
-    tooltip: '{{towers_ai_passengers_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.towers.passenger_slow
-    name: improved-siegeengines-towers-passenger-slow
-    text: '{{towers_passenger_slow}}'
-    tooltip: '{{towers_passenger_slow_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.towers.passenger_lift
-    name: improved-siegeengines-towers-passenger-lift
-    text: '{{towers_passenger_lift}}'
-    tooltip: '{{towers_passenger_lift_tooltip}}'
-    display: Number
-    contents:
-      type: integer
-      value: 4
-      min: -40
-      max: 80
-      step: 2
-
-- display: GroupBox
-  category: [Improved Siegeengines]
-  header: '{{shields_group}}'
-  text: '{{shields_group_descr}}'
-  hasHeader: true
-  children:
-  - url: improved-siegeengines.shields.enabled
-    name: improved-siegeengines-shields-enabled
-    text: '{{shields_enabled}}'
-    tooltip: '{{shields_enabled_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-
-- display: GroupBox
-  category: [Improved Siegeengines]
-  header: '{{oil_group}}'
-  text: '{{oil_group_descr}}'
-  hasHeader: true
-  children:
-  - url: improved-siegeengines.oil.aim
-    name: improved-siegeengines-oil-aim
-    text: '{{oil_aim}}'
-    tooltip: '{{oil_aim_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.oil.spread
-    name: improved-siegeengines-oil-spread
-    text: '{{oil_spread}}'
-    tooltip: '{{oil_spread_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-  - url: improved-siegeengines.oil.amount
-    name: improved-siegeengines-oil-amount
-    text: '{{oil_amount}}'
-    tooltip: '{{oil_amount_tooltip}}'
-    display: Number
-    contents:
-      type: integer
-      value: 41
-      min: 5
-      max: 200
-      step: 1
-  - url: improved-siegeengines.oil.damage
-    name: improved-siegeengines-oil-damage
-    text: '{{oil_damage}}'
-    tooltip: '{{oil_damage_tooltip}}'
-    display: Switch
-    contents:
-      type: boolean
-      value: true
-
-- display: GroupBox
-  category: [Improved Siegeengines]
-  header: '{{diagnostics_group}}'
-  text: '{{diagnostics_group_descr}}'
-  hasHeader: true
-  children:
-  - url: improved-siegeengines.diagnostics.log
-    name: improved-siegeengines-diagnostics-log
-    text: '{{diagnostics_log}}'
-    tooltip: '{{diagnostics_log_tooltip}}'
-    display: Switch
+    text: '{{catapults_enabled_details}}'
+    display: UCP2Switch
     contents:
       type: boolean
       value: false
+    header: '{{catapults_enabled}}'
+    children:
+    - url: improved-siegeengines.catapults.on_the_way
+      name: improved-siegeengines-catapults-on-the-way
+      text: '{{catapults_on_the_way_details}}'
+      display: UCP2Switch
+      contents:
+        type: boolean
+        value: false
+      header: '{{catapults_on_the_way}}'
+    - url: improved-siegeengines.catapults.other_enemies
+      name: improved-siegeengines-catapults-other-enemies
+      text: '{{catapults_other_enemies_details}}'
+      display: UCP2Switch
+      contents:
+        type: boolean
+        value: false
+      header: '{{catapults_other_enemies}}'
+  category:
+  - '{{ai}}'
+  - '{{improvements}}'
+  - '{{cat_siege_crews}}'
+- url: improved-siegeengines.catapults.drop_destroyed
+  name: improved-siegeengines-catapults-drop-destroyed
+  text: '{{catapults_drop_destroyed_details}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{catapults_drop_destroyed}}'
+  category:
+  - '{{ai}}'
+  - '{{fixes}}'
+  - '{{cat_siege_targeting}}'
+- display: GroupBox
+  hasHeader: true
+  header: '{{tents_group}}'
+  children:
+  - url: improved-siegeengines.tents.range
+    name: improved-siegeengines-tents-range
+    text: '{{tents_range_details}}'
+    display: UCP2Switch
+    contents:
+      type: boolean
+      value: false
+    header: '{{tents_range}}'
+  category:
+  - '{{ai}}'
+  - '{{improvements}}'
+  - '{{cat_siege_crews}}'
+- url: improved-siegeengines.tents.free
+  name: improved-siegeengines-tents-free
+  text: '{{tents_free_details}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{tents_free}}'
+  category:
+  - '{{ai}}'
+  - '{{fixes}}'
+  - '{{cat_siege_targeting}}'
+- url: improved-siegeengines.tents.engineers
+  name: improved-siegeengines-tents-engineers
+  text: '{{tents_engineers_details}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{tents_engineers}}'
+  category:
+  - '{{ai}}'
+  - '{{fixes}}'
+  - '{{cat_siege_targeting}}'
+- url: improved-siegeengines.towers.orders
+  name: improved-siegeengines-towers-orders
+  text: '{{towers_orders_details}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{towers_orders}}'
+  category:
+  - '{{ai}}'
+  - '{{improvements}}'
+  - '{{cat_siege_crews}}'
+- url: improved-siegeengines.shields.enabled
+  name: improved-siegeengines-shields-enabled
+  text: '{{shields_enabled_details}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{shields_enabled}}'
+  category:
+  - '{{ai}}'
+  - '{{improvements}}'
+  - '{{cat_siege_crews}}'
+- url: improved-siegeengines.towers.dock
+  name: improved-siegeengines-towers-dock
+  text: '{{towers_dock_details}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{towers_dock}}'
+  category:
+  - '{{bugfixes}}'
+  - '{{cat_siege_digging}}'
+- display: GroupBox
+  hasHeader: true
+  header: '{{towers_group}}'
+  children:
+  - url: improved-siegeengines.towers.passengers
+    name: improved-siegeengines-towers-passengers
+    text: '{{towers_passengers_details}}'
+    display: UCP2Switch
+    contents:
+      type: boolean
+      value: false
+    header: '{{towers_passengers}}'
+  - url: improved-siegeengines.towers.ai_passengers
+    name: improved-siegeengines-towers-ai-passengers
+    text: '{{towers_ai_passengers_details}}'
+    display: UCP2Switch
+    contents:
+      type: boolean
+      value: false
+    header: '{{towers_ai_passengers}}'
+  - url: improved-siegeengines.towers.passenger_slow
+    name: improved-siegeengines-towers-passenger-slow
+    display: UCP2Switch
+    contents:
+      type: boolean
+      value: false
+    header: '{{towers_passenger_slow}}'
+    text: '{{towers_passenger_slow_tooltip}}'
+  category:
+  - '{{balance_changes}}'
+  - '{{cat_siege_sapping}}'
+- url: improved-siegeengines.oil.aim
+  name: improved-siegeengines-oil-aim
+  text: '{{oil_aim_details}}'
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  header: '{{oil_aim}}'
+  category:
+  - '{{bugfixes}}'
+  - '{{cat_siege_digging}}'
+- display: GroupBox
+  hasHeader: true
+  header: '{{oil_group}}'
+  children:
+  - url: improved-siegeengines.oil.spread
+    name: improved-siegeengines-oil-spread
+    text: '{{oil_spread_details}}'
+    display: UCP2Switch
+    contents:
+      type: boolean
+      value: false
+    header: '{{oil_spread}}'
+    children:
+    - url: improved-siegeengines.oil.damage
+      name: improved-siegeengines-oil-damage
+      text: '{{oil_damage_details}}'
+      display: UCP2Switch
+      contents:
+        type: boolean
+        value: false
+      header: '{{oil_damage}}'
+  category:
+  - '{{balance_changes}}'
+  - '{{cat_siege_sapping}}'
+- url: improved-siegeengines.catapults.scatter
+  name: improved-siegeengines-catapults-scatter
+  display: Number
+  contents:
+    type: integer
+    value: 100
+    min: 0
+    max: 100
+    step: 10
+  hidden: true
+- url: improved-siegeengines.tents.variation
+  name: improved-siegeengines-tents-variation
+  display: Number
+  contents:
+    type: integer
+    value: 10
+    min: 0
+    max: 30
+    step: 1
+  hidden: true
+- url: improved-siegeengines.towers.passenger_lift
+  name: improved-siegeengines-towers-passenger-lift
+  display: Number
+  contents:
+    type: integer
+    value: 4
+    min: -40
+    max: 80
+    step: 2
+  hidden: true
+- url: improved-siegeengines.oil.amount
+  name: improved-siegeengines-oil-amount
+  display: Number
+  contents:
+    type: integer
+    value: 41
+    min: 5
+    max: 200
+    step: 1
+  hidden: true
+- url: improved-siegeengines.diagnostics.log
+  name: improved-siegeengines-diagnostics-log
+  display: UCP2Switch
+  contents:
+    type: boolean
+    value: false
+  hidden: true

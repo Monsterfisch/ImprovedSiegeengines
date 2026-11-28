@@ -1,0 +1,46 @@
+ai: Yapay zekâ
+balance_changes: Denge değişiklikleri
+bugfixes: Hata düzeltmeleri
+catapults_drop_destroyed: Yıkılan hedeflere ateş etmeyi bırak
+catapults_drop_destroyed_details: Kuşatma araçları nişan aldıkları bina yıkıldığında ateş etmeyi bırakır.
+catapults_enabled: Yapay zekâ mancınıklarını ve trebuşelerini kuşatma hedeflerine yönelt
+catapults_enabled_details: Menzilli kuşatma araçları atış menzilinden düşman savunmalarına nişan alır.
+catapults_group: Yapay zekâ mancınıkları ve trebuşeleri
+catapults_on_the_way: Yolda ateş etmek için dur
+catapults_on_the_way_details: Bir kuşatma hedefi menzile girdiğinde araçlar ateş eder.
+catapults_other_enemies: Menzildeki diğer düşmanlara da ateş et
+catapults_other_enemies_details: Atanan rakip menzil dışındayken araçlar diğer düşman binalarına ateş edebilir.
+fixes: Düzeltmeler
+improvements: İyileştirmeler
+oil_aim: Açık alana yağ dök
+oil_aim_details: Yağ taşıyan bir mühendis seçin ve açık alana normal saldırı emri verin.
+oil_damage: Yanan yağ binalara zarar verir
+oil_damage_details: Yayılan yağ binalara ulaştığında hasar verir.
+oil_group: Yanan yağ
+oil_spread: Yağ zemine yayılır
+oil_spread_details: Dökülen yağ ateşi yakındaki zemine yayar.
+shields_enabled: Yapay zekâ kalkanları kendi birlikleriyle kalır
+shields_enabled_details: Yapay zekâ kalkanları dost birlikleri korumak için onları izler.
+tags.behavior: Davranış
+tents_engineers: Mühendislerin çadırlarına girmesini sağla
+tents_engineers_details: Atanan yapay zekâ mühendisleri kuşatma çadırlarına ulaşıp girebilir.
+tents_free: Boşalan kuşatma çadırı yerlerini yeniden kullan
+tents_free_details: Yapay zekâ temizlediği uygun yerlere yeni kuşatma çadırları kurabilir.
+tents_group: Yapay zekâ kuşatma çadırları
+tents_range: Menzilli kuşatma çadırlarını atış menziline kur
+tents_range_details: Yapay zekâ mancınık, trebuşe ve ateş balistası çadırlarını, araçların hedefi vurabileceği mesafeye kurar.
+towers_ai_passengers: Yapay zekâ kuşatma kulelerine menzilli birlik bindirir
+towers_ai_passengers_details: Yapay zekâ kuşatma kuleleri menzilli birlikleri taşıyabilir.
+towers_dock: Kuşatma kulelerini daha fazla sura yanaştır
+towers_dock_details: Bir kuşatma kulesine çapraz surlar dâhil bir sura yanaşma emri verin.
+towers_group: Kuşatma kulesi mürettebatları
+towers_orders: Yapay zekâ kuşatma kuleleri yanaşacak sur seçer
+towers_orders_details: Yapay zekâ kuşatma kuleleri ulaşabilecekleri bir sur bulup yanaşır.
+towers_passenger_slow: Beş veya daha fazla birlik taşıyan kuleleri yavaşlat
+towers_passenger_slow_tooltip: Bir kuşatma kulesi beş veya daha fazla birlik taşıdığında yavaşlar.
+towers_passengers: Kuşatma kulelerinde birlik taşı
+towers_passengers_details: Piyadeleri bindirmek için onları seçip dost bir kuşatma kulesine tıklayın. İndirmek için kuleyi seçip araçtan inme imleciyle kuleye tıklayın.
+cat_siege_crews: Kuşatma ekipleri ve donanımı
+cat_siege_digging: Kuşatma donanımı ve kazı
+cat_siege_sapping: Kuşatma ve lağım
+cat_siege_targeting: Kuşatma ve hedefleme

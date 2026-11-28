@@ -1,0 +1,46 @@
+ai: IA
+balance_changes: Cambios de equilibrio
+bugfixes: Correcciones de errores
+catapults_drop_destroyed: Dejar de disparar a objetivos destruidos
+catapults_drop_destroyed_details: Las máquinas de asedio dejan de disparar cuando se destruye el edificio al que apuntan.
+catapults_enabled: Apuntar catapultas y trabuquetes de la IA a objetivos de asedio
+catapults_enabled_details: Las máquinas a distancia apuntan a las defensas enemigas desde su alcance de tiro.
+catapults_group: Catapultas y trabuquetes de la IA
+catapults_on_the_way: Detenerse a disparar en el camino
+catapults_on_the_way_details: Las máquinas disparan cuando un objetivo de asedio entra en alcance.
+catapults_other_enemies: Disparar también a otros enemigos al alcance
+catapults_other_enemies_details: Las máquinas pueden disparar a otros edificios enemigos si su rival asignado está fuera de alcance.
+fixes: Correcciones
+improvements: Mejoras
+oil_aim: Verter aceite en terreno despejado
+oil_aim_details: Selecciona un ingeniero con aceite y da la orden habitual de ataque sobre terreno despejado.
+oil_damage: El aceite ardiente daña edificios
+oil_damage_details: Los edificios sufren daño cuando el aceite que se extiende los alcanza.
+oil_group: Aceite ardiente
+oil_spread: El aceite se extiende por el suelo
+oil_spread_details: El aceite vertido propaga el fuego por el terreno cercano.
+shields_enabled: Los escudos de la IA permanecen con sus tropas
+shields_enabled_details: Los escudos de la IA siguen a las tropas aliadas para protegerlas.
+tags.behavior: Comportamiento
+tents_engineers: Permitir que los ingenieros entren en sus tiendas
+tents_engineers_details: Los ingenieros asignados de la IA pueden llegar y entrar en sus tiendas de asedio.
+tents_free: Reutilizar emplazamientos despejados de tiendas de asedio
+tents_free_details: La IA puede construir nuevas tiendas de asedio en emplazamientos utilizables que haya despejado.
+tents_group: Tiendas de asedio de la IA
+tents_range: Ubicar tiendas de asedio a distancia dentro del alcance
+tents_range_details: La IA coloca las tiendas de catapultas, trabuquetes y balistas de fuego donde las máquinas puedan alcanzar el objetivo.
+towers_ai_passengers: La IA embarca tropas a distancia en torres de asedio
+towers_ai_passengers_details: Las torres de asedio de la IA pueden llevar tropas a distancia a bordo.
+towers_dock: Acoplar torres de asedio en más murallas
+towers_dock_details: Ordena a una torre de asedio acoplarse a una muralla, incluidas las diagonales.
+towers_group: Tripulaciones de torres de asedio
+towers_orders: Las torres de asedio de la IA eligen una muralla para acoplarse
+towers_orders_details: Las torres de asedio de la IA buscan una muralla alcanzable y se acoplan a ella.
+towers_passenger_slow: Ralentizar torres que lleven cinco o más
+towers_passenger_slow_tooltip: Una torre de asedio se vuelve más lenta cuando lleva cinco o más tropas.
+towers_passengers: Llevar tropas en torres de asedio
+towers_passengers_details: Selecciona infantería y haz clic en una torre de asedio aliada para subirla. Para bajarla, selecciona la torre y haz clic en ella con el cursor de salida.
+cat_siege_crews: Dotaciones y equipo de asedio
+cat_siege_digging: Equipo de asedio y excavación
+cat_siege_sapping: Asedio y zapa
+cat_siege_targeting: Asedio y objetivos

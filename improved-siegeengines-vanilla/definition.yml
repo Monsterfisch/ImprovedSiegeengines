@@ -1,0 +1,20 @@
+name: improved-siegeengines-vanilla
+display-name: Improved Siegeengines Vanilla
+author: Monsterfish
+version: 1.0.1
+type: plugin
+game:
+- SHC==1.41
+- SHCE==1.41
+family:
+- name: improved-siegeengines
+  root: true
+  members:
+  - improved-siegeengines-recommended
+  default: improved-siegeengines-recommended
+meta:
+  version: 1.0.0
+dependencies:
+  framework: '>=3.0.7'
+  frontend: '>=1.0.17 <2.0.0'
+  improved-siegeengines: ^1.0.36

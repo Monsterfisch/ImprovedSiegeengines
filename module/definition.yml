@@ -1,9 +1,16 @@
 name: improved-siegeengines
 display-name: Improved Siegeengines
 type: module
-version: 1.0.30
+version: 1.0.36
 author: Monsterfish
 dependencies:
+  framework: '>=3.0.8'
+  frontend: '>=1.0.2'
   map-extensions: ^1.0.0
 meta:
-  version: 1.0.12
+  version: 1.0.0
+game:
+- SHC==1.41
+- SHCE==1.41
+tags:
+- behavior

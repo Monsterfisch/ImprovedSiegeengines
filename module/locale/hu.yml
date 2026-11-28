@@ -1,0 +1,46 @@
+ai: MI
+balance_changes: Egyensúlymódosítások
+bugfixes: Hibajavítások
+catapults_drop_destroyed: Tüzelés leállítása elpusztult célpontokra
+catapults_drop_destroyed_details: Az ostromgépek abbahagyják a lövést, amint a célzott épület elpusztult.
+catapults_enabled: MI katapultok és hajítógépek célzása ostromcélpontokra
+catapults_enabled_details: A távolsági ostromgépek lőtávolból veszik célba az ellenséges védműveket.
+catapults_group: MI katapultok és hajítógépek
+catapults_on_the_way: Megállás tüzelésre útközben
+catapults_on_the_way_details: Az ostromgépek lőnek, amint egy ostromcélpont lőtávolba kerül.
+catapults_other_enemies: Lövés más, lőtávolban lévő ellenségekre is
+catapults_other_enemies_details: Az ostromgépek más ellenséges épületekre is lőhetnek, ha a kijelölt ellenfél lőtávolon kívül van.
+fixes: Javítások
+improvements: Fejlesztések
+oil_aim: Olaj kiöntése nyílt terepre
+oil_aim_details: Jelölj ki egy olajos mérnököt, és adj ki szokásos támadási parancsot nyílt terepre.
+oil_damage: Az égő olaj sebzi az épületeket
+oil_damage_details: Az épületek sérülnek, ha a terjedő olaj eléri őket.
+oil_group: Égő olaj
+oil_spread: Az olaj szétterjed a talajon
+oil_spread_details: A kiöntött olaj továbbterjeszti a tüzet a környező talajra.
+shields_enabled: Az MI-pajzsok a saját csapataikkal maradnak
+shields_enabled_details: Az MI-pajzsok követik a szövetséges csapatokat, hogy védjék őket.
+tags.behavior: Viselkedés
+tents_engineers: A mérnökök bemehessenek a sátraikba
+tents_engineers_details: A beosztott MI-mérnökök elérik és elfoglalják az ostromsátraikat.
+tents_free: Felszabadult ostromsátor-helyek újrahasználata
+tents_free_details: Az MI új ostromsátrakat építhet a megtisztított, használható helyekre.
+tents_group: MI-ostromsátrak
+tents_range: Távolsági ostromsátrak felállítása lőtávolon belül
+tents_range_details: Az MI úgy helyezi el a katapultok, hajítógépek és tűzballiszták sátrait, hogy a gépek lőtávolságon belülről tüzelhessenek a célpontra.
+towers_ai_passengers: Az MI távolsági csapatokat ültet ostromtornyokba
+towers_ai_passengers_details: Az MI-ostromtornyok távolsági csapatokat vehetnek a fedélzetükre.
+towers_dock: Ostromtornyok dokkolása több falhoz
+towers_dock_details: Utasíts egy ostromtornyot, hogy dokkoljon egy falhoz, akár átlós falakhoz is.
+towers_group: Ostromtorony-személyzetek
+towers_orders: Az MI-ostromtornyok falat választanak a dokkoláshoz
+towers_orders_details: Az MI-ostromtornyok elérhető falat keresnek és hozzádokkolnak.
+towers_passenger_slow: Öt vagy több utassal a tornyok lassuljanak
+towers_passenger_slow_tooltip: Az ostromtorony lelassul, ha öt vagy több katonát szállít.
+towers_passengers: Csapatok szállítása ostromtornyokban
+towers_passengers_details: A beszálláshoz jelöld ki a gyalogosokat, majd kattints egy baráti ostromtoronyra. A kiszálláshoz jelöld ki a tornyot, és a kiszállást jelző kurzorral kattints rá.
+cat_siege_crews: Ostromlegénység és -felszerelés
+cat_siege_digging: Ostromgépek és ásás
+cat_siege_sapping: Ostrom és aláaknázás
+cat_siege_targeting: Ostrom és célpontválasztás

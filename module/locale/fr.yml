@@ -1,0 +1,46 @@
+ai: IA
+balance_changes: Modifications de l'équilibrage
+bugfixes: Corrections de bugs
+catapults_drop_destroyed: Cesser le feu sur les cibles détruites
+catapults_drop_destroyed_details: Les engins de siège cessent de tirer dès que le bâtiment visé est détruit.
+catapults_enabled: Viser des cibles de siège avec les catapultes et trébuchets IA
+catapults_enabled_details: Les engins à distance visent les défenses ennemies depuis leur portée de tir.
+catapults_group: Catapultes et trébuchets IA
+catapults_on_the_way: S’arrêter pour tirer en chemin
+catapults_on_the_way_details: Les engins tirent dès qu’une cible de siège entre à portée.
+catapults_other_enemies: Tirer aussi sur d’autres ennemis à portée
+catapults_other_enemies_details: Les engins peuvent viser d’autres bâtiments ennemis quand leur adversaire désigné est hors de portée.
+fixes: Correctifs
+improvements: Améliorations
+oil_aim: Verser l’huile sur terrain dégagé
+oil_aim_details: Sélectionnez un ingénieur porteur d’huile et donnez l’ordre d’attaque habituel sur un terrain dégagé.
+oil_damage: L’huile enflammée endommage les bâtiments
+oil_damage_details: Les bâtiments subissent des dégâts lorsque l’huile qui s’étend les atteint.
+oil_group: Huile enflammée
+oil_spread: L’huile s’étend sur le sol
+oil_spread_details: L’huile versée propage le feu au terrain voisin.
+shields_enabled: Les boucliers IA restent avec leurs troupes
+shields_enabled_details: Les boucliers IA suivent les troupes alliées pour les protéger.
+tags.behavior: Comportement
+tents_engineers: Laisser les ingénieurs entrer dans leurs tentes
+tents_engineers_details: Les ingénieurs IA affectés peuvent atteindre et entrer dans leurs tentes de siège.
+tents_free: Réutiliser les emplacements libres de tentes de siège
+tents_free_details: L’IA peut bâtir de nouvelles tentes de siège sur les emplacements libérés.
+tents_group: Tentes de siège IA
+tents_range: Placer les tentes de siège à distance à portée de tir
+tents_range_details: L’IA place les tentes des catapultes, trébuchets et balistes incendiaires à une distance qui permet à ces engins d’atteindre leur cible.
+towers_ai_passengers: L’IA embarque des unités à distance dans ses tours de siège
+towers_ai_passengers_details: Les tours de siège IA peuvent embarquer des unités à distance.
+towers_dock: Accoster les tours de siège sur plus de murs
+towers_dock_details: Ordonnez à une tour de siège d’accoster un mur, y compris les murs en diagonale.
+towers_group: Équipages de tours de siège
+towers_orders: Les tours de siège IA choisissent un mur où accoster
+towers_orders_details: Les tours de siège IA cherchent un mur accessible et s’y accostent.
+towers_passenger_slow: Ralentir les tours portant cinq soldats ou plus
+towers_passenger_slow_tooltip: Une tour de siège ralentit lorsqu’elle transporte cinq soldats ou plus.
+towers_passengers: Transporter des troupes dans les tours de siège
+towers_passengers_details: Sélectionnez des fantassins et cliquez sur une tour de siège alliée pour les faire monter. Pour les faire descendre, sélectionnez la tour et cliquez dessus avec le curseur de sortie.
+cat_siege_crews: Équipes et engins de siège
+cat_siege_digging: Engins de siège et creusement
+cat_siege_sapping: Siège et sape
+cat_siege_targeting: Siège et ciblage

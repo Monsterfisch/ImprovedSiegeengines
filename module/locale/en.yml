@@ -1,183 +1,46 @@
-catapults_group: Catapults and trebuchets
-catapults_group_descr: |
-  In the unmodified game an AI catapult only looks for a target one direction at a time, and
-  only at walls that still stand tall. When it finds nothing it rolls on towards the castle,
-  and if nobody shoots it on the way it ends up right in front of the wall.
-
-  With this on, an AI catapult or trebuchet first looks all the way round, as far as it can
-  throw, for the nearest enemy wall, tower or gatehouse and shoots that from where it stands.
-  Farms, workshops, houses and other civilian buildings are only shot at once no fortification
-  is left in reach. It only rolls closer when there is really nothing in
-  reach. Once the player it was sent against is beaten (his lord is dead), it shoots at any other
-  enemy instead. Fire ballistas already do this in the unmodified game and are left alone.
-catapults_enabled: Catapults and trebuchets pick their own targets
-catapults_enabled_tooltip: |
-  Off: AI catapults and trebuchets choose their targets exactly as in the unmodified game.
-
-catapults_on_the_way: Catapults and trebuchets stop to shoot on the way
-catapults_on_the_way_tooltip: |
-  In the unmodified game a siege engine only looks for something to shoot while it stands
-  still, so an AI catapult on its way somewhere - a raid, the army's march, its slow creep
-  towards the walls - rolls past everything in range. With this, a walking AI catapult or
-  trebuchet looks all round every few moments, and as soon as an enemy wall, tower, gatehouse or
-  building is in its range it stops and shoots it, choosing the target as above. Needs the
-  setting above.
-catapults_other_enemies: Shoot other enemies in reach too
-catapults_other_enemies_tooltip: |
-  An AI catapult or trebuchet only shoots at the player it is besieging. When nothing of that
-  player is in reach it rolls on towards his castle, past other enemies' walls and buildings.
-  With this on it shoots those instead - the besieged player's walls and buildings still come
-  first whenever one is in reach.
-catapults_drop_destroyed: Stop shooting at destroyed buildings
-catapults_drop_destroyed_tooltip: |
-  A siege engine aiming at a building (a fire ballista at something that burns, or a catapult
-  ordered at a building) kept shooting that building's empty spot after it was destroyed, and
-  never moved on - the game only checked the building's number, which stays until another
-  building takes it. Now a destroyed target is dropped and the engine looks for a new one.
-  Works for every siege engine, fire ballistas included.
-catapults_scatter: AI catapult and trebuchet scatter (%)
-catapults_scatter_tooltip: |
-  How far AI catapult and trebuchet shots miss, compared with the game. The game lets a
-  catapult rock land up to 12 tiles short (4 long) and 6 to the side, and a trebuchet up to 6
-  to the side - at long range most of them hit open ground in front of the wall. Below 100 the
-  miss is scaled down and a catapult's is centred on its target. 100 keeps the game's own aim.
-  Your own engines are not changed.
-tents_group: Siege tents
-tents_group_descr: |
-  The AI picks its siege tent spots from a list it works out for each castle. In the
-  unmodified game a spot that was used once stays marked as used for the rest of the game,
-  so in a long game every good spot is gone and the tents end up further and further away -
-  until the trebuchets built in them cannot reach the castle and just stand there.
-
-  The two switches below fix that separately. Only AI players are affected.
-tents_free: Reuse safe tent spots
-tents_free_tooltip: |
-  A tent spot can be used again once the troop that built there is gone, nothing stands on
-  it any more, and no enemy soldier is close enough to attack an engine there (archers,
-  crossbowmen, slingers, horse archers and fire throwers by their range - also when they
-  stand on towers - and anyone with a sword or spear within 10 tiles). Ballistas do not count:
-  their range is so long that they would rule out almost every spot.
-tents_range: Place ranged engine tents by range
-tents_range_tooltip: |
-  Tents for catapults, trebuchets and fire ballistas go where the engine can reach the castle:
-  measured from the enemy's walls, towers and gatehouses, a little short of the engine's
-  range, so it can also hit things further inside. Tents for siege towers, rams and shields
-  are placed as before. If there is no such spot the AI places the tent the way it always did.
-tents_variation: How much closer (tiles)
-tents_variation_tooltip: |
-  Each ranged engine's tent goes between 0 and this many tiles short of the engine's range
-  (always at least 6 tiles inside the range, for the tent and where the engine rolls out of
-  it, so even the farthest tent can still hit), picked a little
-  differently for each tent. 0 puts every tent at the edge of the engine's range.
-tents_engineers: Engineers always get into their tent
-tents_engineers_tooltip: |
-  In the unmodified game an engineer whose way to a siege tent's entrance is blocked gives up
-  and stands around, and the tent never gets its engine. Now, every AI round, a tent that
-  still lacks engineers gets its entrance checked the game's own way - a blocked entrance
-  moves to a free side - and is sent its engineers again: first those that gave up on it or
-  stand stuck on the way, then idle engineers nearby (within 60 tiles). A tent walled in on
-  every side waits until a way opens, then gets its engineers.
-
-towers_group: Siege towers
-towers_group_descr: |
-  In the unmodified game a siege tower can only dock at a straight stretch of wall at least
-  three tiles long with a clear 3x3 square in front of it, and the AI only sends towers at
-  walls from its own list of such places - often late, and never at a castle without them.
-towers_dock: Siege towers dock at more walls
-towers_dock_tooltip: |
-  Where the game finds no spot, a tower docks with the corner of its 3x3 against a diagonal
-  wall, and if that does not work either, at the same wall up to three tiles along. This is
-  for every siege tower, the player's too. It used to be part of Smarter Walls, which no
-  longer does it from version 1.0.16 on.
-towers_orders: AI siege towers find their own wall
-towers_orders_tooltip: |
-  An AI siege tower that has nothing to do looks for the nearest enemy wall it can dock at
-  (within 100 tiles) and goes there; if there is none it may try a wall from the AI's own list.
-  If that gets it nowhere either - it is given no order, or stands still on the way - or a
-  castle is built so that no tower can dock anywhere, it walks with the army like a big shield
-  until a wall comes in reach: with
-  the patrol troops if there are any, else the siege defence troops, else the main army, else
-  a randomly picked ranged troop of the attacking army, and only when none of those are left
-  the backup troops.
-
-towers_passengers: Foot soldiers ride on siege towers
-towers_passengers_tooltip: |
-  Select foot soldiers and point at one of your siege towers: the arrows for manning an engine
-  show, and a click sends them over. Up to 9 climb on top as they reach it and ride along -
-  archers and crossbowmen shoot from there even while the tower rolls. Up there they are as safe
-  as on a docked tower: arrows from below do a third of the damage and swords cannot reach them.
-  They cannot be selected while they ride. When the tower docks at a wall they stand on the
-  docked tower and go on from there; when it is destroyed they die with it. Select the tower and
-  point at it for the arrows to leave an engine: the first click puts the passengers down around
-  it, the next one the engineers, as before.
-towers_passenger_slow: Loaded siege towers are slower
-towers_passenger_slow_tooltip: |
-  A siege tower with 5 or more passengers (half of its 9 places) moves one speed step slower
-  than it normally would.
-towers_passenger_lift: Passengers drawn higher by (pixels)
-towers_passenger_lift_tooltip: |
-  Only where the passengers are drawn: raise this if they look like they stand below the top
-  deck of a moving siege tower, lower it if they float above it. Their real height - and with
-  it how well arrows from below and swords reach them - is the docked tower's either way.
-towers_ai_passengers: AI siege towers take on ranged troops
-towers_ai_passengers_tooltip: |
-  An AI siege tower takes on its own archers, crossbowmen, slingers and fire throwers that stand
-  within 3 tiles of it, up to 9, and carries them to the wall.
-shields_group: Portable shields
-shields_group_descr: |
-  AI portable shields in the unmodified game only ever follow the backup troops, at most
-  three of them, and a shield whose troop is gone can end up chasing whatever unit took its
-  troop leader's place - even a deer.
-shields_enabled: Shields walk with their own troops
-shields_enabled_tooltip: |
-  AI shields go to the troops filling in the moat, the attacking army's ranged siege engines
-  (not the ones the AI keeps at home) and its ranged troops (archers, crossbowmen, slingers,
-  horse archers, fire throwers) - only to units of their own player or an ally, never to the
-  main army's melee troops. The backup troops only get shields once none of those are left.
-  The shields are spread evenly over the places there are (each new shield goes where the
-  fewest are, a shield stays where it is as long as that place keeps no more than its share).
-  With nobody at all a shield stops where it is and waits.
-
-oil_group: Oil engineers
-oil_group_descr: |
-  For everyone's engineers with oil pots, the player's too. In the unmodified game the pot is
-  thrown at a spot and nudged a little at random; if it comes down on a wall, stairs, a tower or
-  another obstacle the oil does nothing at all, and the engineer walks all the way back to refill
-  for nothing. And the fire is always the same diamond around the spot, whatever the ground.
-oil_aim: Pour oil on ground only
-oil_aim_tooltip: |
-  An engineer pours only where burning oil can lie: open ground, not a wall, stairs, a tower or
-  another building. On their own engineers only pour on an enemy who stands on
-  such ground. Sent by you at a spot that is not, the engineer pours on the nearest ground up to 4
-  tiles from it that is no more than 45 degrees off his line to your spot. If there is none, he
-  keeps his oil and says "impossible location", the same line units say when they cannot go
-  somewhere. The pot also no longer drifts off the spot it was poured at.
-oil_spread: Oil spreads by its amount
-oil_spread_tooltip: |
-  The oil from one pot runs out over the ground it lands on: the same amount of oil covers the
-  same number of tiles, and it only runs between tiles of about the same height, never up or
-  down a wall or a steep step. It starts where the engineer aimed - also when the pot comes down
-  on the wall he stands on. In open ground that is exactly the unmodified game's pour: the same
-  fire, flare and spreading. Down a narrow passage, where it runs further than that fire reaches,
-  it looks like more pots poured along it: every 5 tiles, as the oil gets there, another of the
-  same fires starts, with its flare and the pot's impact sound.
-oil_amount: Tiles one pot covers
-oil_amount_tooltip: |
-  How many tiles the oil from one pot covers. 41 is what the unmodified game's fire covers in
-  open ground.
-oil_damage: Burning oil damages buildings it touches
-oil_damage_tooltip: |
-  The downside: buildings the oil runs up against are damaged once when it reaches them - a
-  third of their health right where the pot landed, less the further along the oil they are.
-  Your own too. That is every building the game's fire can set alight: hovels, workshops,
-  farms, mills, the granary, armoury, barracks, market, stables, guilds, chapel, church,
-  cathedral, inn, bakery, blacksmith, oil smelter and so on. Walls, towers, gatehouses, keeps,
-  stockpiles, wells and siege tents are not damaged. The fire itself spreads as in the unmodified
-  game (the game never lets your own fire light your own buildings).
-
-diagnostics_group: Diagnostics
-diagnostics_group_descr: |
-  For testing. Writes a line to ucp3.log when an AI shield, siege tower or engineer is given a new place
-  to go, and a summary of each AI's siege round (what it found and left out) whenever that changes.
-diagnostics_log: Write AI decisions to the log
-diagnostics_log_tooltip: Off for normal play. Writes the AI's siege rounds to ucp3.log, and every target a catapult or trebuchet picks (where it stands, the target tile and what is on it).
+ai: AI
+balance_changes: Balance Changes
+bugfixes: Bugfixes
+catapults_drop_destroyed: Stop firing at destroyed targets
+catapults_drop_destroyed_details: Siege engines stop firing when the building they are aiming at is destroyed.
+catapults_enabled: Aim AI catapults and trebuchets at siege targets
+catapults_enabled_details: Ranged engines aim at enemy defenses from firing range.
+catapults_group: AI catapults and trebuchets
+catapults_on_the_way: Stop to fire on the way
+catapults_on_the_way_details: Engines fire when a siege target comes into range.
+catapults_other_enemies: Also fire at other enemies in range
+catapults_other_enemies_details: Engines can fire at other enemy buildings when their assigned opponent is out of range.
+fixes: Fixes
+improvements: Improvements
+oil_aim: Pour oil onto open ground
+oil_aim_details: Select an oil engineer and give the usual attack order on open ground.
+oil_damage: Burning oil damages buildings
+oil_damage_details: Buildings take damage when spreading oil reaches them.
+oil_group: Burning oil
+oil_spread: Oil spreads across the ground
+oil_spread_details: Poured oil spreads the fire across nearby ground.
+shields_enabled: AI shields stay with their own troops
+shields_enabled_details: AI shields follow friendly troops to protect them.
+tags.behavior: Behavior
+tents_engineers: Let engineers enter their tents
+tents_engineers_details: Assigned AI engineers can reach and enter their siege tents.
+tents_free: Reuse clear siege tent sites
+tents_free_details: The AI can build new siege tents on usable sites it has cleared.
+tents_group: AI siege tents
+tents_range: Site ranged siege tents within firing range
+tents_range_details: The AI places catapult, trebuchet and fire ballista tents within range of the target.
+towers_ai_passengers: AI loads ranged troops onto siege towers
+towers_ai_passengers_details: AI siege towers can take ranged troops aboard.
+towers_dock: Dock siege towers at more walls
+towers_dock_details: Order a siege tower to dock at a wall, including diagonal walls.
+towers_group: Siege tower crews
+towers_orders: AI siege towers choose a wall to dock at
+towers_orders_details: AI siege towers look for a wall they can reach and dock against.
+towers_passengers: Carry troops on siege towers
+towers_passengers_details: Click a friendly tower with foot soldiers selected to board, or select the tower and click it with the leave-engine cursor to dismount.
+towers_passenger_slow: Slow towers carrying five or more
+towers_passenger_slow_tooltip: A siege tower slows down when it carries five or more troops.
+cat_siege_crews: Siege crews and equipment
+cat_siege_digging: Siege equipment and digging
+cat_siege_sapping: Siege and sapping
+cat_siege_targeting: Siege and targeting

@@ -1,0 +1,63 @@
+meta:
+  version: 1.0.0
+config-sparse:
+  modules:
+    improved-siegeengines:
+      config:
+        catapults:
+          enabled:
+            contents:
+              suggested-value: true
+          on_the_way:
+            contents:
+              suggested-value: true
+          other_enemies:
+            contents:
+              suggested-value: true
+          scatter:
+            contents:
+              suggested-value: 50
+          drop_destroyed:
+            contents:
+              suggested-value: true
+        tents:
+          range:
+            contents:
+              suggested-value: true
+          free:
+            contents:
+              suggested-value: true
+          engineers:
+            contents:
+              suggested-value: true
+        towers:
+          orders:
+            contents:
+              suggested-value: true
+          passenger_slow:
+            contents:
+              suggested-value: true
+          dock:
+            contents:
+              suggested-value: true
+          passengers:
+            contents:
+              suggested-value: true
+          ai_passengers:
+            contents:
+              suggested-value: true
+        shields:
+          enabled:
+            contents:
+              suggested-value: true
+        oil:
+          aim:
+            contents:
+              suggested-value: true
+          spread:
+            contents:
+              suggested-value: true
+          damage:
+            contents:
+              suggested-value: true
+  plugins: {}

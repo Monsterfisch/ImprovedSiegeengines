@@ -44,6 +44,7 @@ local AI_RANGED = { 22, 23, 70, 72, 76 }
 local HALF_FULL = 5          -- passengers (of 9) from which a tower is one speed step slower
 -- setUnitValues: a unit's speed from the table by unit type (read live, so balance changes count).
 local AOB_SPEED = "0F B7 04 BD ? ? ? ? 33 D2 66 89 86 60 09 00 00"
+local AOB_TILE_BITS = "F6 04 5D ? ? ? ? 10 74 0D 83 BE"
 -- All riders stand on the tower's own tile and point; the places are only where they are drawn.
 local PLACES = { { -4, -4 }, { 0, -4 }, { 4, -4 }, { -4, 0 }, { 4, 0 }, { -4, 4 }, { 0, 4 },
   { 4, 4 }, { 0, 0 } }
@@ -660,6 +661,10 @@ T.pin = [[
   cmp word [UNITS + 0x2A0 + ebx], 0
   jne .out
   movzx ebp, word [RIDE + esi + 4]
+  test ebp, ebp
+  jz .out
+  cmp ebp, MAXUNITS
+  jae .out
   imul ebp, ebp, 0x490
   movzx eax, word [UNITS + 0xB6 + ebp]
   mov [RDAT + 0x30], eax
@@ -740,7 +745,8 @@ T.pin = [[
 ]]
 
 -- AIBOARD(tower): an AI tower takes on its own ranged troops standing close by (on the ground,
--- not yet riding), until its 9 places are full.
+-- not yet riding), until its 9 places are full. The targeted build uses the same
+-- seat assignment for one eligible infantry unit, without the proximity filter.
 T.aiBoard = [[
   push ebx
   push esi
@@ -758,7 +764,11 @@ T.aiBoard = [[
   call TAKEN
   add esp, 4
   mov [RDAT + 0x50], eax
+if TARGETED
+  mov ecx, [esp + 24]
+else
   mov ecx, 1
+end if
 .loop:
   cmp dword [RDAT + 0x50], 0x1FF
   je .done
@@ -777,10 +787,15 @@ T.aiBoard = [[
   movzx eax, word [UNITS + 0x8E + ebx]
   cmp eax, 80
   jae .next
+if TARGETED
+  cmp byte [BOARDABLE + eax], 0
+else
   cmp byte [AIRANGED + eax], 0
+end if
   je .next
   cmp word [UNITS + 0xBC + ebx], 0
   jne .next
+if TARGETED = 0
   movsx eax, word [UNITS + 0xC4 + ebx]
   movsx edx, word [UNITS + 0xC4 + ebp]
   sub eax, edx
@@ -793,6 +808,7 @@ T.aiBoard = [[
   add eax, AIREACH
   cmp eax, AIREACH * 2
   ja .next
+end if
   imul esi, ecx, RECORD
   cmp byte [RIDE + esi + 6], 0
   je .take
@@ -821,10 +837,20 @@ T.aiBoard = [[
   mov ecx, US
   call STOPWALK
   pop ecx
+if TARGETED
+  mov eax, 1
+  jmp .return
+.next:
+else
 .next:
   inc ecx
   jmp .loop
+end if
 .done:
+if TARGETED
+  xor eax, eax
+.return:
+end if
   pop ebp
   pop edi
   pop esi
@@ -842,12 +868,6 @@ T.update = [[
   imul ecx, eax, 0x490
   cmp word [UNITS + 0x8E + ecx], TOWER
   jne .orig
-  cmp dword [RDAT + 4], 0
-  je .tower
-  mov edx, [TICKS]
-  add edx, eax
-  test edx, 31
-  jnz .tower
   movsx edx, word [UNITS + 0x96 + ecx]
   cmp edx, 1
   jl .tower
@@ -856,12 +876,24 @@ T.update = [[
   imul edx, edx, PSTRIDE
   cmp dword [AITYPE + edx], 0
   je .tower
+  cmp dword [RDAT + 0x64], 0
+  je .auto
+  call CREWPOLICY
+  cmp dword [RDAT + 0x68], 0
+  jne .tower
+.auto:
+  cmp dword [RDAT + 4], 0
+  je .tower
+  mov eax, [CURRENT]
+  mov edx, [TICKS]
+  add edx, eax
+  test edx, 31
+  jnz .tower
   push eax
   call AIBOARD
   add esp, 4
 .tower:
-  cmp dword [RDAT + 0x60], 0
-  je .run
+  if SPEEDS <> 0
   push dword [CURRENT]
   call TAKEN
   add esp, 4
@@ -882,6 +914,7 @@ T.update = [[
   mov eax, [CURRENT]
   imul eax, eax, 0x490
   mov [UNITS + 0x34C + eax], dx
+  end if
 .run:
   push dword [CURRENT]
   call dword [ORIGS + TOWER*4]
@@ -1100,6 +1133,10 @@ T.standing = [[
   cmp word [UNITS + 0x2A0 + eax], 0
   jne .done
   movzx edx, word [RIDE + ecx + 4]
+  test edx, edx
+  jz .done
+  cmp edx, MAXUNITS
+  jae .done
   imul edx, edx, 0x490
   mov cx, [UNITS + 0xBA + edx]
   mov [UNITS + 0xBA + eax], cx
@@ -1221,6 +1258,10 @@ T.drawVanish = [[
   mov edx, [UNITS + 0xD4 + esi]
   call .gate
   movzx edx, word [RIDE + eax + 4]
+  test edx, edx
+  jz .done
+  cmp edx, MAXUNITS
+  jae .done
   imul edx, edx, 0x490
   mov edx, [UNITS + 0xD4 + edx]
   call .gate
@@ -1230,9 +1271,12 @@ T.drawVanish = [[
   pop eax
   jmp BACK
 .tower:
+  if TILEBITS <> 0
   cmp dword [UNITS + 0x64 + esi], 0
   jne .done
   mov edx, [UNITS + 0xD4 + esi]
+  cmp edx, TILES
+  jae .done
   test byte [TILEBITS + edx*2], 0x10
   jz .done
   push eax
@@ -1241,6 +1285,7 @@ T.drawVanish = [[
   test eax, eax
   jz .done
   mov dword [UNITS + 0x64 + esi], 1
+  end if
   jmp .done
 .gate:
   cmp edx, TILES
@@ -1321,6 +1366,7 @@ function riders.enable(env)
     alt = rd32(shift + 2) + SHIFT_TO_ALT
   else
     alt = core.allocate(4, true)
+    log(ERROR, "Using Alt to keep troops off siege towers is off.")
     log(WARNING, "improved-siegeengines: Alt does not keep troops off a siege tower: " .. tostring(shift))
   end
   local stuck = scan(AOB_STUCK, "the stuck unit test")
@@ -1331,11 +1377,19 @@ function riders.enable(env)
   local groupSelect = scan(AOB_GROUP_SELECT, "selecting a control group")
   expectBytes(groupSelect + GROUP_NEXT[1], GROUP_NEXT[2], "selecting a control group")
 
+  local function optionalOperand(pattern, description, offset)
+    local resolved, address = pcall(scan, pattern, description)
+    if resolved then return rd32(address + offset) end
+    log(ERROR, description .. " is off.")
+    log(WARNING, tostring(address))
+    return 0
+  end
+  local tileBits = optionalOperand(AOB_TILE_BITS, "siege tower draw ordering", 3)
+  local speeds = env.slow and optionalOperand(AOB_SPEED, "loaded siege tower slowdown", 4) or 0
   local ride = core.allocate(G.maxUnits * RECORD, true)
   local tslot = core.allocate(G.maxUnits * 9 * 2, true)
   local rd = core.allocate(0x100, true)
   wr32(rd + 0x0C, env.lift or 0)
-  wr32(rd + 0x60, env.slow and 1 or 0)
   wr32(rd + 0x04, env.ai and 1 or 0)
   wr32(rd + 0x08, env.player and 1 or 0)
   local boardable, ranged = core.allocate(80, true), core.allocate(80, true)
@@ -1352,8 +1406,7 @@ function riders.enable(env)
   local v = {
     UNITS = G.units, US = G.unitsState, TRIBES = G.tribes, TSTRIDE = G.tribeStride,
     MAXUNITS = G.maxUnits, MAXTRIBES = env.maxTribes, TICKS = G.ticks, CURRENT = current,
-    SPEEDS = rd32(scan(AOB_SPEED, "the unit speeds") + 4), HALFFULL = HALF_FULL,
-    TILEBITS = G.flags - 0x165160 + 0x301C80,
+    SPEEDS = speeds, HALFFULL = HALF_FULL, TILEBITS = tileBits,
     ALT = alt, RIDE = ride, TSLOT = tslot, RDAT = rd, RECORD = RECORD, TILES = 0x13A10,
     BIDS = G.buildingIds, BTYPE = G.buildingType, GATEFIRST = GATEHOUSES[1], GATELAST = GATEHOUSES[2], TOWER = TOWER, HEIGHT = HEIGHT,
     BOARDREACH = BOARD_REACH, STOPREACH = STOP_REACH, AIREACH = AI_REACH,
@@ -1385,8 +1438,16 @@ function riders.enable(env)
   v.PRE = assemble(T.pre, v)
   v.PIN = assemble(T.pin, v)
   v.PINALL = assemble(T.pinAll, v)
+  v.TARGETED = 0
   v.AIBOARD = assemble(T.aiBoard, v)
+  v.TARGETED = 1
+  local boardUnit = core.exposeCode(assemble(T.aiBoard, v), 2, 0)
+  local taken = core.exposeCode(v.TAKEN, 1, 0)
   v.SELINF = assemble(T.selectedInfantry, v)
+  v.CREWPOLICY = env.luaFunction("the AI tower crew policy", function()
+    wr32(rd + 0x68, 0)
+    if env.crewPolicy(rd32(current)) then wr32(rd + 0x68, 1) end
+  end)
   local update = assemble(T.update, v)
   v.GOMAN, v.GOLEAVE, v.BACK = hover + HOVER_REACH[1], hover + HOVER_LEAVE[1], hover + HOVER_SIZE
   local hoverCode = assemble(T.hover, v)
@@ -1422,7 +1483,7 @@ function riders.enable(env)
       for unit = 1, G.maxUnits - 1 do
         local at = ride + unit * RECORD
         if byte(at + 6) ~= 0 then
-          parts[#parts + 1] = string.pack("<I2", unit) .. core.readString(at, RECORD)
+          parts[#parts + 1] = string.pack("<I2", unit) .. string.char(table.unpack(core.readBytes(at, RECORD)))
         end
       end
       handle:put(SAVE_KEY, table.concat(parts))
@@ -1433,13 +1494,14 @@ function riders.enable(env)
       if not handle:exists(SAVE_KEY) then return end
       local data = handle:get(SAVE_KEY)
       for offset = 1, #data - RECORD - 1, RECORD + 2 do
-        local unit = string.unpack("<I2", data, offset)
-        if unit > 0 and unit < G.maxUnits then
+        local unit, _, tower, mode, place = string.unpack("<I2I4I2BB", data, offset)
+        if unit > 0 and unit < G.maxUnits and tower > 0 and tower < G.maxUnits
+            and unit ~= tower and (mode == 1 or mode == 2) and place < 9 then
           local at = ride + unit * RECORD
-          core.writeString(at, data:sub(offset + 2, offset + 1 + RECORD))
-          local tower, place = core.readSmallInteger(at + 4) & 0xFFFF, byte(at + 7)
-          if byte(at + 6) == 2 and tower < G.maxUnits and place < 9 then
-            core.writeSmallInteger(tslot + 2 * (tower * 9 + place), unit)
+          local seat = tslot + 2 * (tower * 9 + place)
+          if byte(at + 6) == 0 and (mode == 1 or core.readSmallInteger(seat) == 0) then
+            core.writeBytes(at, { data:byte(offset + 2, offset + 1 + RECORD) })
+            if mode == 2 then core.writeSmallInteger(seat, unit) end
           end
         end
       end
@@ -1463,7 +1525,31 @@ function riders.enable(env)
     env.patch(man, env.jumpCode(man, manCode, INSTR.MAN_SIZE), INSTR.MAN_SIZE)
     env.patch(leave, env.jumpCode(leave, leaveCode, INSTR.LEAVE_SIZE), INSTR.LEAVE_SIZE)
   end
+  local function validIndex(index)
+    return math.type(index) == "integer" and index > 0 and index < G.maxUnits
+  end
+  local function validTower(tower)
+    return validIndex(tower) and core.readSmallInteger(G.units + tower * 0x490 + 0x8E) == 58
+  end
   riders.data = rd
+  riders.enableCrewPolicy = function() wr32(rd + 0x64, 1) end
+  if env.hasCrewPolicy then riders.enableCrewPolicy() end
+  riders.isClimbingReady = function()
+    return rd32(rd + 4) ~= 0 or rd32(rd + 8) ~= 0
+  end
+  riders.getFreeSeats = function(tower)
+    if not riders.isClimbingReady() or not validTower(tower) then return 0 end
+    local mask, seats = taken(tower), #PLACES
+    while mask ~= 0 do
+      mask = mask & (mask - 1)
+      seats = seats - 1
+    end
+    return seats
+  end
+  riders.boardUnit = function(tower, unit)
+    return riders.isClimbingReady() and validTower(tower) and validIndex(unit)
+      and boardUnit(tower, unit) == 1
+  end
   return true
 end
 
